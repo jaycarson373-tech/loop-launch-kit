@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1789238302570,
+      "tag": "0000_glorious_pixie",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789238736933,
+      "tag": "0001_bizarre_riptide",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789238856096,
+      "tag": "0002_modern_apocalypse",
+      "breakpoints": true
+    }
+  ]
+}

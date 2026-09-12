@@ -2,7 +2,8 @@ import { sites } from '@openai/sites-vite-plugin';
 import tailwindcss from '@tailwindcss/postcss';
 import vinext from 'vinext';
 import { defineConfig } from 'vite';
-import hostingConfig from './.openai/hosting.json';
+import { fileURLToPath } from 'node:url';
+import hostingConfig from './.openai/hosting.json' with { type: 'json' };
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   '00000000-0000-4000-8000-000000000000';
@@ -28,7 +29,7 @@ const localBindingConfig = {
     ? [
         {
           binding: r2,
-          bucket_name: 'site-creator-r2',
+          bucket_name: 'loop-assets',
         },
       ]
     : [],
@@ -45,6 +46,43 @@ export default defineConfig(async () => {
   const { cloudflare } = await import('@cloudflare/vite-plugin');
 
   return {
+    resolve: {
+      alias: [
+        {
+          find: /^@solana\/kit-plugin-wallet$/,
+          replacement: fileURLToPath(
+            new URL(
+              './node_modules/@solana/kit-plugin-wallet/dist/index.browser.mjs',
+              import.meta.url,
+            ),
+          ),
+        },
+        {
+          find: /^@solana\/kit-plugin-wallet\/react$/,
+          replacement: fileURLToPath(
+            new URL(
+              './node_modules/@solana/kit-plugin-wallet/dist/react/index.browser.mjs',
+              import.meta.url,
+            ),
+          ),
+        },
+      ],
+    },
+    define: { 'process.env.ANCHOR_BROWSER': JSON.stringify('true') },
+    environments: {
+      rsc: {
+        optimizeDeps: {
+          include: [
+            '@pump-fun/pump-sdk',
+            '@pump-fun/pump-swap-sdk',
+            '@solana/web3.js',
+            '@solana/spl-token',
+            '@coral-xyz/anchor',
+            'bn.js',
+          ],
+        },
+      },
+    },
     css: { postcss: { plugins: [tailwindcss()] } },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }

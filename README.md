@@ -1,55 +1,83 @@
 # Loop Finance
 
-Independent Solana launchpad preview inspired by Revolve's publicly described product. This repository contains a working website and deterministic buyback policy/accounting engine. It is **not a deployed token or an operational trading service**.
+Independent Solana launchpad inspired by Revolve's public product. The app includes server-persisted launch plans, artwork storage, Wallet Standard connection, Pump launch preparation and signing, a durable buyback ledger, transaction reconciliation, and managed-signer/keeper services.
 
-## Run
+**Deployment status:** the private website works. Financial execution is configuration-gated. A funded token launch, managed KMS signer, continuously running keeper, and live buyback acceptance run have not been deployed or performed. Do not equate passing local tests with live trading readiness.
 
-Requires Node 24 (or a Node release supporting native TypeScript stripping) and npm.
+## Development
+
+Requires Node 24 and npm.
 
 ```sh
-npm install
-npm run dev
-npm test
-npx tsc --noEmit
-npm run build
-npm run simulate -- 10 55
-npm run simulate -- 10 55 --main
+npm ci
+npx wrangler d1 migrations apply DB --local --config wrangler.local.json
+npm run dev -- --port 3001
 ```
 
-The website supports token-plan creation, image preview, validated project links and payout addresses, browser-local draft storage, plan export, an interactive buyback simulator, a treasury allocation calculator, and policy documentation. Nothing requests a wallet signature, private key, or payment. Drafts remain on the device and can be exported. An image stored as a data URL must be uploaded to a durable public metadata host before a real launch.
+Open `/signin-with-chatgpt?return_to=/` once for the local Sites test identity. Production uses the Sites dispatcher identity and its private access policy. Production routes must never be exposed directly on a server that trusts client-supplied identity headers.
 
-## Buyback implementation
+```sh
+npm test
+npx tsc --noEmit
+npm run lint
+npm run build
+# With the dev server running and live credentials absent:
+npm run test:api
+npm run simulate -- 10 55
+```
 
-`lib/buybacks.ts` implements exact lamport accounting, 70/10/20 creator-fee allocations (80/0/20 for LOOP), idempotent receipt crediting, a 50% drop trigger against the rolling 20-minute high, re-arming above 80% of that high, 2.5% cycle lots, a 0.05 SOL minimum, four-lot batches with two-second scheduled spacing, fee-inclusive reservations, settlement by observed debit, fail-closed receipt mismatches, uncertain-transaction holds, and venue migration pauses. The treasury stream uses 50% of independently verified net platform revenue and one eligible lot per minute. Price freshness is required. Proposed live slippage is capped at 1%.
+`test:api` creates local test drafts and artwork; it never calls a signer or submits a transaction. D1 migrations under `drizzle/` are packaged and applied by Sites on deployment. R2 stores original artwork. The website remains private unless its owner changes access.
 
-The simulator and the tested engine share implementation. Simulator costs are examples; they are not RPC quotes. `creditCreatorFees` and `creditNetPlatformRevenue` expect already verified receipts; they do not verify chain evidence themselves. The snapshot is an audit export, not a complete restart checkpoint. The engine is synchronous, mutable, and in memory. A live operator must serialize state changes durably and isolate the state of every coin.
+## What is implemented
 
-## Production work remaining
+- Connect compatible Solana wallets through Kit's Wallet Standard plugin. The browser holds the ephemeral new-mint signer only in memory. Wallets must support signing without automatic broadcast.
+- Create and edit authenticated launch drafts in D1; upload PNG/JPEG/WebP artwork to R2; export plans. Old browser drafts remain available for recovery.
+- Provision a dedicated managed creator wallet, upload public Pump metadata, build and simulate `create_v2`, review costs, and submit a wallet-signed transaction. The 0.01 SOL creator-vault funding is disclosed in the review. Wallet debit also includes network fees and account rent.
+- Use official Pump and PumpSwap SDKs behind an isolated legacy `web3.js` compatibility adapter. The frontend uses Solana Kit. The Worker build disables Anchor's Node-only workspace loader with `ANCHOR_BROWSER`.
+- Fetch verified bonding-curve/canonical-pool state, enforce SOL pairs and supported token extensions, collect creator fees, parse confirmed fee events, pay creators, transfer net platform receipts, and buy an exact amount with an atomic matching burn. Every RPC transaction path verifies the selected cluster's genesis hash.
+- Store reservations and signed transaction identity before broadcast. D1 leases and revision checks serialize each launch. Ambiguous submissions retain their reservation and block further spending. Confirmed compiled messages must match stored messages exactly. Known receipts are applied once, including after restart.
+- Display persisted launches, pending/confirmed buyback activity, explorer receipts and treasury accounting. Empty activity stays empty; charts marked as simulations are hypothetical.
 
-The reference site's private backend is not public source and has not been copied. Live behavior needs its own implementation:
+## Fee and buyback policy
 
-1. Obtain the owner's public treasury and payout addresses, choose the network, and finalize the fee policy.
-2. Implement Wallet Standard signing, current Pump create/buy instructions and creator-fee collection using the official SDK/IDL; validate owner, mint, creator, vaults, venue and token program.
-3. Host token artwork and metadata durably; quote current launch costs and simulate the full transaction before presenting it for user signature.
-4. Build and test atomic swap-and-burn transactions for the bonding curve and canonical PumpSwap pool. Reject unsupported Token-2022 extensions. Verify delivered amounts and account balance changes.
-5. Add a durable, transactional ledger and outbox, trusted RPC price ingestion, per-coin locking, receipt reconciliation, monitoring and a running keeper. Persist the signed transaction's identity before broadcast; ambiguous submission must never cause a duplicate spend.
-6. Add a reviewed signing/custody architecture and authorization. No secrets belong in the browser, repo, exported plans, or chat. Fee/payout accounting needs confirmed network evidence and actual costs.
-7. Test with forked/local state and adversarial receipts, then review deployment and funding before enabling mainnet.
+The engine uses integer lamports. Standard creator-fee income is split 70% buyback, 10% creator and 20% platform. The configured main mint uses 80/0/20. Claim costs and an initial operating subsidy are repaid before net platform distributions.
 
-Token creation, claims, payouts, custody, swaps, burns, automatic background execution, and inactivity retirement/sweeping are **not implemented as live integrations**. The UI states this explicitly. There is no contract address, fake transaction history, funded treasury, guaranteed return, or setup charge.
+A drop of at least 50% from the rolling 20-minute observed high releases held buyback funds. Recovery above 80% re-arms the trigger. Each cycle uses 2.5% lots, a 0.05 SOL minimum, at most four lots per batch and two-second spacing. Purchase and cost ceilings are reserved together. Unspendable dust returns to held funds. New income stays held during an existing cycle.
+
+Half of verified net platform transfers funds the main mint's separate treasury stream, targeting one eligible lot per minute. Platform receipts are retained even before the main mint is configured. Quote allowance is at most 1%; signer defaults additionally cap each buy at 1 SOL and each payout at 100 SOL. Raise those explicit operator limits only after review. Simulation values do not constitute network quotes or investment projections.
+
+## Runtime configuration and activation
+
+The checked-in `config/site.env.example` and `config/signer.env.example` contain names and empty placeholders only. Configure runtime values through Sites and your signing-service secret manager; never commit wallet keys or tokens.
+
+| Site setting                           | Purpose                                                                 |
+| -------------------------------------- | ----------------------------------------------------------------------- |
+| `LOOP_CLUSTER`                         | `devnet` by default; `mainnet-beta` requires explicit operator approval |
+| `LOOP_RPC_URL`                         | Reliable HTTP RPC for exactly that network                              |
+| `LOOP_TREASURY_ADDRESS`                | Public managed treasury address                                         |
+| `LOOP_MAIN_MINT`                       | Confirmed Loop launch mint for the 80/20 and treasury policy            |
+| `LOOP_SIGNER_URL`, `LOOP_SIGNER_TOKEN` | HTTPS managed signer and its secret bearer token                        |
+| `LOOP_KEEPER_TOKEN`                    | Secret bearer token for the application's keeper route                  |
+| `LOOP_ALLOW_MAINNET`                   | Must be `true` to permit configured mainnet execution                   |
+
+The UI's enabled flags indicate required configuration is present, not a successful network acceptance run. Pump programs must be deployed on the chosen network; do not assume their mainnet program IDs exist on devnet. A local fork or appropriately configured test deployment is needed for realistic pre-production acceptance.
+
+See `keeper/README.md` for Google Cloud KMS and runner deployment. The treasury must be controlled by the configured managed key for automated treasury buys. A personal wallet's public address alone cannot make that service sign. The runner must have an approved path through the private Sites audience gate; the application bearer token alone cannot bypass it. No cloud account or service has been provisioned by this repository.
+
+Activation requires the owner's network and treasury choice, RPC/signing infrastructure, deployed scheduler, funded test acceptance, and review of the final execution policy. No seed phrase belongs in chat, source, environment variables, or the browser.
+
+## Verification and remaining limits
+
+Unit tests cover allocation conservation, idempotency, rolling prices, trigger boundaries, lot spacing, uncertain outcomes, failed fees, over-budget halts, migration, restart checkpoints, operating debt and signer restrictions. Local HTTP checks cover authentication, origins, invalid inputs, D1 edits, R2 uploads and execution gates. CI repeats tests, type checks and build.
+
+A live wallet/network acceptance run and independent custody/trading audit remain outstanding. Transactions that are signed but cannot be proven confirmed or failed remain held indefinitely; do not manually release their funds without network evidence. The bounded legacy packet format rejects oversized transactions rather than silently splitting an atomic buy/burn. Background retirement/sweeping is not implemented. Trading frequency depends on the keeper's capacity and available RPC service; the current runner handles three launches per request.
+
+Dependency scanning still needs review for legacy Pump SDK transitive packages; do not use `npm audit fix --force` to replace supported SDKs with obsolete major versions. The Worker excludes Anchor's filesystem workspace path. No claim of a clean independent security audit is made.
+
+Browser UI testing was not requested. WebMCP `simulate_loop_buybacks` is feature-detected; a compatible browser validation context was unavailable. Compilation and HTTP checks do not replace that UI check. The starter’s strict lint command currently reports remaining type-style/accessibility findings in the app and bundled UI components; lint is not represented as a passing CI gate.
 
 ## Reference findings
 
-Observed September 12, 2026:
+Observed September 12, 2026: the supplied short link redirects to [Revolve](https://revolvepad.com/). Its site identifies pump.fun and its public-links API points to [this REVOLVE mint](https://pump.fun/coin/J8X5ygWHY5uHFch7m3MisSC7eDAWpAkgi1pyqfT5pump). This is the advertised launch platform, not independent evidence of a Pump Fund investment or an audited launch history. Loop uses its own branding and implementation.
 
-- The supplied `https://t.co/wRaPUGJCKw` redirects to `https://revolvepad.com/`.
-- Revolve's public interface labels its launch infrastructure as pump.fun. Its `/api/public-links` returns the main-token URL `https://pump.fun/coin/J8X5ygWHY5uHFch7m3MisSC7eDAWpAkgi1pyqfT5pump`.
-- This identifies the advertised launch platform and token link; it is not an independent transaction-history audit or evidence of a Pump Fund investment.
-- Revolve describes standard 70/10/20 fee allocations and a separate 80/20 main-token policy. Loop's implementation was written independently from public behavior descriptions; it does not reuse source code, assets, wallets, or branding from Revolve.
-- Current official integration references: https://github.com/pump-fun/pump-public-docs and its coin creation, buy, creator-fee and PumpSwap documents.
-
-## Verification notes
-
-Tests cover accounting conservation, input validation, idempotent claims and settlement, fresh price requirements, rolling-window expiry, threshold boundaries, batching, uncertain receipts, cost settlement, halted mismatches, migration, treasury cadence and simulator behavior. No chain transaction is broadcast by tests.
-
-The site registers a feature-detected WebMCP `simulate_loop_buybacks` tool while the simulator is mounted. A supported WebMCP validation context was unavailable; the registration/interaction contract has not been browser-verified. Browser UI testing was not requested. Production build and TypeScript checks are used for compilation validation.
+Integration references: [Pump public documentation](https://github.com/pump-fun/pump-public-docs), [Solana genesis verification](https://solana.com/docs/rpc/http/getgenesishash), [KMS signing API and pure Ed25519](https://docs.cloud.google.com/kms/docs/reference/rpc/google.cloud.kms.v1).

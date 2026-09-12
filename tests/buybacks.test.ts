@@ -154,3 +154,45 @@ test('simulation returns data and cannot spend', () => {
     0,
   );
 });
+
+test('durable checkpoint preserves every pending reservation and trigger reference', () => {
+  const e = ready();
+  e.creditNetPlatformRevenue('net', 2n * LAMPORTS);
+  const [l] = e.reserveBatch(1000, 5000n);
+  e.attachSignature(l.id, 'persistent-signature');
+  e.settle(l.id, 'uncertain');
+  const checkpoint = JSON.parse(JSON.stringify(e.checkpoint()));
+  const restored = BuybackEngine.restore(checkpoint);
+  assert.deepEqual(restored.checkpoint(), checkpoint);
+  assert.equal(restored.reserveBatch(2000, 5000n).length, 0);
+  assert.equal(restored.creditCreatorFees('r', 10n * LAMPORTS), false);
+});
+test('invalid checkpoint cannot manufacture negative funds or duplicate reservations', () => {
+  const e = ready();
+  e.reserveBatch(1000, 5000n);
+  const bad = e.checkpoint();
+  bad.held = '-1';
+  assert.throws(() => BuybackEngine.restore(bad));
+  const duplicate = e.checkpoint();
+  duplicate.lots.push(duplicate.lots[0]);
+  assert.throws(() => BuybackEngine.restore(duplicate));
+});
+test('unsigned reservations can be recovered, signed ones cannot be released', () => {
+  const e = ready(),
+    [a, b] = e.reserveBatch(1000, 5000n);
+  e.cancelUnsent(a.id);
+  e.attachSignature(b.id, 'cannot-cancel');
+  assert.throws(() => e.cancelUnsent(b.id));
+  assert.throws(() => e.cancelUnsent(a.id));
+});
+test('operating subsidy is repaid before net platform revenue accrues', () => {
+  const e = new BuybackEngine();
+  e.recordOperationsCost(100n);
+  e.creditCreatorFees('fees', 1000n);
+  assert.equal(e.operationsDebt, 0n);
+  assert.equal(e.platform, 100n);
+  assert.equal(e.held, 700n);
+  assert.equal(e.creator, 100n);
+  const restored = BuybackEngine.restore(e.checkpoint());
+  assert.equal(restored.platform, 100n);
+});

@@ -1,4 +1,5 @@
 'use client';
+import { LiveHistory, useLoop, requestApi } from './live';
 import { useState, useEffect } from 'react';
 import {
   RefreshCw,
@@ -12,14 +13,7 @@ import {
 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+
 import { simulateBuybacks, type SimulationInput } from '@/lib/buybacks';
 import { downloadJson } from '@/lib/launch';
 const fmt = (v: number) =>
@@ -140,7 +134,7 @@ export function BuybackPanel() {
             </div>
           </label>
           <div className="slider-label">
-            <label id="drop-label">Drop from the 20-minute high</label>
+            <span id="drop-label">Drop from the 20-minute high</span>
             <strong>{input.drop}%</strong>
           </div>
           <Slider
@@ -258,32 +252,7 @@ export function BuybackPanel() {
           Buybacks and burns do not guarantee price support or returns.
         </p>
       </div>
-      <section className="panel ledger">
-        <div className="panel-title">
-          <h3>On-chain buyback history</h3>
-          <span className="muted">Live execution is not configured</span>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Transaction</TableHead>
-              <TableHead>Purchased</TableHead>
-              <TableHead>Burned</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow>
-              <TableCell colSpan={4}>
-                <div className="ledger-empty">
-                  No verified transactions yet. Confirmed purchase and burn
-                  receipts will belong here.
-                </div>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </section>
+      <LiveHistory />
     </div>
   );
 }
@@ -310,6 +279,26 @@ export function Metric({
   );
 }
 export function TreasuryPanel() {
+  const { refresh } = useLoop();
+  const [treasury, setTreasury] = useState<any>(null);
+  const [treasuryError, setTreasuryError] = useState('');
+  useEffect(() => {
+    let active = true;
+    const load = () =>
+      requestApi('treasury')
+        .then((d) => {
+          if (active) setTreasury(d);
+        })
+        .catch((e) => {
+          if (active) setTreasuryError(e.message);
+        });
+    void load();
+    const timer = setInterval(() => void load(), 20000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [refresh]);
   const [net, setNet] = useState(10);
   return (
     <div>
@@ -322,25 +311,52 @@ export function TreasuryPanel() {
             platform revenue.
           </p>
         </div>
-        <span className="status-pill">Pre-launch</span>
+        <span className="status-pill">
+          {treasury?.automationEnabled ? 'Connected' : 'Setup required'}
+        </span>
       </div>
+      {treasuryError && (
+        <p className="error" role="alert">
+          {treasuryError}
+        </p>
+      )}
       <div className="metric-grid">
         <Metric
           title="Verified revenue"
-          value="— SOL"
-          note="Treasury wallet not connected"
+          value={
+            treasury?.balances
+              ? `${fmt(Number(treasury.balances.netPlatformRevenue) / 1e9)} SOL`
+              : '— SOL'
+          }
+          note={
+            treasury?.treasury
+              ? 'Confirmed net platform income'
+              : 'Treasury address not configured'
+          }
           icon={<ArrowUpRight />}
         />
         <Metric
           title="LOOP buyback spending"
-          value="— SOL"
-          note="No confirmed transaction receipts"
+          value={
+            treasury?.balances
+              ? `${fmt(Number(treasury.balances.treasurySpent) / 1e9)} SOL`
+              : '— SOL'
+          }
+          note="Confirmed treasury-stream wallet debits"
           icon={<RefreshCw />}
         />
         <Metric
           title="LOOP burned"
-          value="— LOOP"
-          note="A token mint has not been configured"
+          value={
+            treasury?.balances
+              ? `${fmt(Number(treasury.balances.burned) / 1e6)} LOOP`
+              : '— LOOP'
+          }
+          note={
+            treasury?.mint
+              ? 'Confirmed main-token burns'
+              : 'LOOP mint not configured'
+          }
           icon={<Flame />}
         />
       </div>
@@ -348,7 +364,7 @@ export function TreasuryPanel() {
         <section className="panel simulator">
           <div className="panel-title">
             <h3>Platform revenue policy</h3>
-            <span className="pill">PROPOSED</span>
+            <span className="pill">POLICY</span>
           </div>
           <div className="treasury-split">
             <div>

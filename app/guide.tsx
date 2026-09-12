@@ -1,4 +1,4 @@
-import { ArrowUpRight, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 export function Guide() {
   return (
     <div className="guide">
@@ -6,11 +6,9 @@ export function Guide() {
         <div>
           <span className="eyebrow">THE LOOP FIELD GUIDE</span>
           <h2>Know where every SOL goes.</h2>
-          <p>
-            The proposed policy, the mechanics, and the current launch status.
-          </p>
+          <p>The fee policy, the mechanics, and live-service requirements.</p>
         </div>
-        <span className="status-pill">Policy v0.1 · Preview</span>
+        <span className="status-pill">Policy v0.2</span>
       </div>
       <div className="guide-layout">
         <nav aria-label="Guide sections">
@@ -34,16 +32,17 @@ export function Guide() {
             <span className="eyebrow">01 / LAUNCH</span>
             <h3>Give your token a starting point.</h3>
             <p>
-              Set a name, symbol, artwork and payout address. Review the
-              proposed policy and save or export the launch plan. Plans are
-              saved only in this browser and do not create tokens. Artwork
-              uploaded here stays in the plan until a metadata hosting service
-              is configured.
+              Connect a Wallet Standard wallet and save your token name, symbol,
+              artwork and payout address to your signed-in workspace. Artwork is
+              stored with the app. Preparing a live launch uploads its metadata
+              publicly through Pump and simulates the transaction.
             </p>
             <p>
-              A future live launch needs a reviewed transaction, a selected
-              network, current costs and a wallet signature. Loop does not
-              currently collect a setup payment.
+              Review the network, estimated total debit and 0.01 SOL
+              creator-vault funding, then sign in your wallet. A token is shown
+              as active only after its transaction and creator are verified on
+              the network. Live preparation stays disabled until the services
+              are configured.
             </p>
           </article>
           <article id="guide-1">
@@ -67,7 +66,7 @@ export function Guide() {
               from a token’s buyback pool.
             </p>
             <p>
-              The proposed LOOP token uses 80% buybacks and 20% platform
+              The configured LOOP main token uses 80% buybacks and 20% platform
               funding, with no creator payout. Transaction costs must come from
               the balance responsible for that activity.
             </p>
@@ -98,11 +97,10 @@ export function Guide() {
               remaining balances wait.
             </p>
             <p>
-              The intended live transaction purchases tokens and burns the
-              delivered amount atomically. This needs a tested on-chain
-              integration; the current engine only plans and accounts for
-              transactions. Loop’s proposed slippage ceiling is 1%. A quote
-              outside it must be rejected.
+              The transaction adapter purchases an exact token amount and burns
+              that amount in the same transaction. The purchase budget includes
+              a maximum 1% slippage allowance. Transactions are simulated before
+              signing; network execution still needs deployment validation.
             </p>
             <p>
               Burning reduces supply. Neither purchases nor burns guarantee a
@@ -136,29 +134,34 @@ export function Guide() {
             </p>
             <p>
               Moving from a bonding curve to PumpSwap resets the price reference
-              and pauses execution until the venue is verified. Production
-              requires durable storage of receipts and reservations,
-              reconciliation after restarts, monitored RPC access, and a
-              controlled signing service.
+              and pauses execution until the venue is verified. Receipts,
+              reservations and signed transaction identities are persisted
+              before broadcast. A separate managed signer and continuously
+              running keeper are required for automatic operation.
             </p>
           </article>
           <article id="guide-6">
             <span className="eyebrow">07 / READINESS</span>
             <h3>What is available today.</h3>
             <ul>
-              <li>Token-plan creation, validation, local saving and export.</li>
+              <li>Wallet connection, server-saved plans and stored artwork.</li>
               <li>
-                Tested fee allocation, dip evaluation, treasury allocation and
-                reservation accounting.
+                Launch preparation, simulation, signature submission and receipt
+                tracking.
+              </li>
+              <li>
+                Fee collection, payout and atomic buy-and-burn adapters with a
+                durable ledger.
               </li>
               <li>Interactive buyback simulation and JSON export.</li>
             </ul>
             <p>
-              Live token creation, fee claims, payouts, swap-and-burn
-              transactions, and continuous background execution are not
-              connected. No live mint or treasury address has been configured.
-              There is no deployed Loop smart contract or audited custody
-              service.
+              Live operations require a treasury, a matching network RPC, the
+              managed signing service and a running keeper. No token or treasury
+              has been funded by this build. Trading adapters have not yet
+              passed a funded network acceptance run. The signer uses Google
+              Cloud KMS managed keys; the trading system has not received an
+              independent audit.
             </p>
             <p>
               The reference project is{' '}

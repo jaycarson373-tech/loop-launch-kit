@@ -6,12 +6,10 @@ import {
   RefreshCw,
   Flame,
   Rocket,
-  Wallet,
   ShieldCheck,
   Upload,
   Download,
   FileText,
-  Layers,
   Check,
   Info,
   Infinity as LoopIcon,
@@ -25,6 +23,14 @@ import {
 } from '@/components/ui/dialog';
 import { BuybackPanel, TreasuryPanel } from './buyback-panel';
 import { Guide } from './guide';
+import {
+  LoopProvider,
+  useLoop,
+  WalletControl,
+  ServerLaunches,
+  ExploreLive,
+  requestApi,
+} from './live';
 import { validatePlan, exportPlan, type LaunchPlan } from '@/lib/launch';
 const initial = {
   name: '',
@@ -37,11 +43,19 @@ const initial = {
 };
 const storageKey = 'loop-finance.launch-plans.v1';
 export default function Home() {
+  return (
+    <LoopProvider>
+      <HomeContent />
+    </LoopProvider>
+  );
+}
+function HomeContent() {
+  const { address, openWallet, config, changed } = useLoop();
+  const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState('launch');
   const [form, setForm] = useState(initial);
   const [plans, setPlans] = useState<LaunchPlan[]>([]);
   const [review, setReview] = useState(false);
-  const [readiness, setReadiness] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [imageError, setImageError] = useState(false);
@@ -119,24 +133,31 @@ export default function Home() {
       setError((e as Error).message);
     }
   }
-  function save() {
+  async function save() {
+    if (!address) {
+      openWallet();
+      return;
+    }
+    setSaving(true);
+    setError('');
     try {
-      const plan = makePlan();
-      validatePlan(plan);
-      const updated = [plan, ...plans.filter((p) => p.id !== plan.id)].slice(
-        0,
-        30,
-      );
-      localStorage.setItem(storageKey, JSON.stringify(updated));
-      setPlans(updated);
-      setCurrentId(plan.id);
+      validatePlan(form);
+      const result = await requestApi('launches', {
+        id: currentId || undefined,
+        wallet: address,
+        plan: form,
+      });
+      setCurrentId(result.id);
       setReview(false);
+      changed();
       navigate('my-launches');
-      setNotice('Launch plan saved on this device. No token has been created.');
-    } catch {
-      setError(
-        'This browser could not save your plan. Use Export launch plan instead.',
+      setNotice(
+        'Launch plan saved to your workspace. Review and sign a separate transaction to launch.',
       );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
     }
   }
   async function uploadImage(file?: File) {
@@ -148,15 +169,23 @@ export default function Home() {
       setError('Choose a PNG, JPEG or WebP image under 2 MB.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setForm((v) => ({ ...v, image: String(reader.result) }));
+    try {
+      setSaving(true);
+      const response = await fetch('/api/loop/assets', {
+        method: 'POST',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      const data = (await response.json()) as { image: string; error?: string };
+      if (!response.ok) throw new Error(data.error || 'Upload failed.');
+      setForm((v) => ({ ...v, image: data.image }));
       setImageError(false);
       setError('');
-    };
-    reader.onerror = () =>
-      setError('The image could not be read. Try another file.');
-    reader.readAsDataURL(file);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
   }
   const hasImage = !!form.image && !imageError;
   return (
@@ -191,12 +220,9 @@ export default function Home() {
         </nav>
         <span className="network">
           <i />
-          Solana · Preview
+          Solana · {config?.cluster === 'mainnet-beta' ? 'Mainnet' : 'Devnet'}
         </span>
-        <button className="wallet-button" onClick={() => setReadiness(true)}>
-          <Wallet />
-          <span>Launch status</span>
-        </button>
+        <WalletControl />
       </header>
       <main>
         <div className="page-intro">
@@ -252,7 +278,9 @@ export default function Home() {
                 Guide
               </TabsTrigger>
             </TabsList>
-            <span className="muted">PRE-LAUNCH</span>
+            <span className="muted">
+              {config?.launchEnabled ? 'CONFIGURED' : 'SETUP REQUIRED'}
+            </span>
           </div>
           {notice && (
             <div className="notice" role="status">
@@ -428,7 +456,8 @@ export default function Home() {
                   </button>
                   <p className="footnote">
                     <ShieldCheck />
-                    Preview mode. No funds are requested or moved.
+                    Saving is free. Launch transactions require your wallet
+                    signature.
                   </p>
                 </form>
               </section>
@@ -510,9 +539,13 @@ export default function Home() {
                 <div className="token-bottom">
                   <span>
                     <RefreshCw />
-                    Proposed policy
+                    Buyback policy
                   </span>
-                  <span>Live execution not enabled</span>
+                  <span>
+                    {config?.automationEnabled
+                      ? 'Keeper configured'
+                      : 'Keeper setup required'}
+                  </span>
                 </div>
               </aside>
             </div>
@@ -522,51 +555,10 @@ export default function Home() {
               <div>
                 <span className="eyebrow">EXPLORE THE ECOSYSTEM</span>
                 <h2>Every token has a loop.</h2>
-                <p>
-                  Verified launches and their buyback pools will appear here.
-                </p>
-              </div>
-              <span className="status-pill">0 live tokens</span>
-            </div>
-            <div className="explore-grid">
-              <article className="panel main-token-card">
-                <div className="main-token-logo">
-                  <LoopIcon />
-                </div>
-                <span className="pill">PLANNED</span>
-                <h3>
-                  Loop Finance <small>$LOOP</small>
-                </h3>
-                <p>
-                  The proposed native token. 80% of creator fees allocated to
-                  buybacks, plus a separate stream from net platform revenue.
-                </p>
-                <div className="token-details">
-                  <span>
-                    Mint address<b>Not deployed</b>
-                  </span>
-                  <span>
-                    Buyback execution<b>Not enabled</b>
-                  </span>
-                </div>
-                <button
-                  className="secondary wide"
-                  onClick={() => navigate('treasury')}
-                >
-                  Explore the treasury policy
-                  <ArrowUpRight />
-                </button>
-              </article>
-              <div className="panel empty">
-                <Layers />
-                <h2>The next loop starts with you.</h2>
-                <p>Create a launch plan and preview its buyback policy.</p>
-                <button className="primary" onClick={() => navigate('launch')}>
-                  Create a token plan
-                  <ArrowRight />
-                </button>
+                <p>Confirmed launches and their accounted buyback pools.</p>
               </div>
             </div>
+            <ExploreLive />
           </TabsContent>
           <TabsContent value="buybacks">
             <BuybackPanel />
@@ -579,10 +571,7 @@ export default function Home() {
               <div>
                 <span className="eyebrow">YOUR WORKSPACE</span>
                 <h2>Ideas, ready for their next step.</h2>
-                <p>
-                  Launch plans saved on this device. Export a copy to keep a
-                  backup.
-                </p>
+                <p>Saved launches, transaction review and on-chain receipts.</p>
               </div>
               <button
                 className="secondary"
@@ -596,67 +585,33 @@ export default function Home() {
                 <ArrowRight />
               </button>
             </div>
-            {plans.length ? (
-              <div className="plans-grid">
+            <ServerLaunches
+              onEdit={(row) => {
+                setForm({ ...initial, ...row.plan });
+                setCurrentId(row.id);
+                setError('');
+                navigate('launch');
+              }}
+            />
+            {plans.length > 0 && (
+              <div className="panel legacy-drafts">
+                <h3>Earlier drafts on this device</h3>
                 {plans.map((plan) => (
-                  <article className="panel plan-card" key={plan.id}>
-                    <div className="plan-symbol">{plan.symbol.slice(0, 2)}</div>
-                    <span className="pill">DRAFT</span>
-                    <h3>{plan.name}</h3>
-                    <span className="token-symbol">${plan.symbol}</span>
-                    <p>{plan.description || 'Your next token launch.'}</p>
-                    <div className="token-details">
-                      <span>
-                        Buyback allocation<b>70%</b>
-                      </span>
-                      <span>
-                        Network<b>Not selected</b>
-                      </span>
-                    </div>
-                    <div className="plan-actions">
-                      <button
-                        className="secondary"
-                        onClick={() => {
-                          setForm({
-                            name: plan.name,
-                            symbol: plan.symbol,
-                            description: plan.description,
-                            image: plan.image,
-                            payout: plan.payout,
-                            website: plan.website,
-                            social: plan.social,
-                          });
-                          setCurrentId(plan.id);
-                          setImageError(false);
-                          setError('');
-                          navigate('launch');
-                        }}
-                      >
-                        Edit plan
-                        <ArrowUpRight />
-                      </button>
-                      <button
-                        className="icon-button"
-                        aria-label={`Export ${plan.name} plan`}
-                        onClick={() => exportPlan(plan)}
-                      >
-                        <Download />
-                      </button>
-                    </div>
-                  </article>
+                  <button
+                    className="secondary"
+                    key={plan.id}
+                    onClick={() => {
+                      setForm({ ...initial, ...plan, image: '' });
+                      setCurrentId('');
+                      navigate('launch');
+                      setNotice(
+                        'Connect your wallet and re-upload the artwork to save this earlier draft to your workspace.',
+                      );
+                    }}
+                  >
+                    {plan.name} · Import
+                  </button>
                 ))}
-              </div>
-            ) : (
-              <div className="panel empty">
-                <Rocket />
-                <h2>Your first launch starts here.</h2>
-                <p>
-                  Give your token a name, review the policy and save your plan.
-                </p>
-                <button className="primary" onClick={() => navigate('launch')}>
-                  Create a token plan
-                  <ArrowRight />
-                </button>
               </div>
             )}
           </TabsContent>
@@ -705,8 +660,9 @@ export default function Home() {
           </span>
           <DialogTitle>Review your launch plan</DialogTitle>
           <DialogDescription>
-            Check the details before saving. This creates a local draft; it does
-            not launch a token or charge your wallet.
+            Save the details to your workspace, then prepare a launch for
+            simulation and wallet review. Saving a draft does not charge your
+            wallet.
           </DialogDescription>
           <div className="review-token">
             <strong>{form.name}</strong>
@@ -731,14 +687,15 @@ export default function Home() {
               </b>
             </span>
             <span>
-              Network / mint<b>Not configured</b>
+              Network<b>{config?.cluster || 'Devnet'}</b>
             </span>
           </div>
           <div className="inline-note">
             <Info />
             <p>
-              Live launch and automated transactions need a configured mint,
-              treasury and execution service.
+              Launch fees include network costs and 0.01 SOL of operating funds
+              for your token’s dedicated creator wallet. Metadata is published
+              when you prepare the launch.
             </p>
           </div>
           {error && (
@@ -746,8 +703,16 @@ export default function Home() {
               {error}
             </p>
           )}
-          <button className="primary wide" onClick={save}>
-            Save launch plan
+          <button
+            className="primary wide"
+            disabled={saving}
+            onClick={() => void save()}
+          >
+            {saving
+              ? 'Saving…'
+              : address
+                ? 'Save launch plan'
+                : 'Connect wallet to save'}
             <Check />
           </button>
           <button
@@ -757,53 +722,6 @@ export default function Home() {
             Export launch plan
             <Download />
           </button>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={readiness} onOpenChange={setReadiness}>
-        <DialogContent className="loop-dialog">
-          <span className="dialog-icon">
-            <Wallet />
-          </span>
-          <DialogTitle>Loop is in pre-launch.</DialogTitle>
-          <DialogDescription>
-            You can create token plans and test the buyback policy. No wallet
-            payments are enabled.
-          </DialogDescription>
-          <div className="readiness-list">
-            <span>
-              <Check />
-              Site and token planning <b>Ready</b>
-            </span>
-            <span>
-              <Check />
-              Buyback policy engine <b>Tested</b>
-            </span>
-            <span>
-              <Info />
-              Treasury wallet <b>Needed</b>
-            </span>
-            <span>
-              <Info />
-              LOOP token mint <b>Needed</b>
-            </span>
-            <span>
-              <Info />
-              Live execution service <b>Needed</b>
-            </span>
-          </div>
-          <button
-            className="primary wide"
-            onClick={() => {
-              setReadiness(false);
-              navigate('buybacks');
-            }}
-          >
-            Explore the simulator
-            <ArrowRight />
-          </button>
-          <p className="footnote">
-            Loop Finance is independent of pump.fun and Revolve.
-          </p>
         </DialogContent>
       </Dialog>
     </div>

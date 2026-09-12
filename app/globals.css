@@ -1737,3 +1737,62 @@ footer p {
     font-size: 11px;
   }
 }
+.wallet-address {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0a1710;
+}
+.live-launch-flow {
+  display: grid;
+  gap: 18px;
+}
+.live-launch-flow .primary {
+  font-size: 14px;
+}
+.transaction-list {
+  display: grid;
+  gap: 12px;
+}
+.transaction-list > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  padding: 14px 0;
+  font-size: 13px;
+  color: #b3cbbd;
+}
+.transaction-list a {
+  display: inline-flex;
+  align-items: center;
+  color: var(--primary);
+  gap: 6px;
+}
+.transaction-list a svg {
+  width: 14px;
+  height: 14px;
+}
+.transaction-list small {
+  font-size: 12px;
+  color: #87a28f;
+}
+.legacy-drafts {
+  padding: 24px;
+  margin-top: 24px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.legacy-drafts h3 {
+  width: 100%;
+  font-size: 16px;
+}
+.live-launch-flow .review-rows {
+  margin: 8px 0;
+}

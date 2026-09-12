@@ -47,6 +47,7 @@ export function validatePlan(p: Partial<LaunchPlan>) {
   if (
     p.image &&
     !validHttps(p.image) &&
+    !/^\/api\/loop\/assets\/[0-9a-f-]{36}$/.test(p.image) &&
     !/^data:image\/(png|jpeg|webp);base64,/.test(p.image)
   )
     throw new Error('Choose a PNG, JPEG, WebP image or an HTTPS image URL.');
@@ -86,6 +87,6 @@ export function exportPlan(plan: LaunchPlan) {
       batchSpacingSeconds: 2,
       slippageBps: 100,
     },
-    note: 'A launch plan, not an on-chain launch. Uploaded artwork must be hosted and transaction infrastructure configured before use.',
+    note: 'A launch plan, not an on-chain launch. Server-hosted artwork is uploaded to public Pump metadata during launch preparation. Execution requires configured services and a separate wallet signature.',
   });
 }

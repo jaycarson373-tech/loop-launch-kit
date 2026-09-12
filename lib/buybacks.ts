@@ -56,7 +56,11 @@ export class BuybackEngine {
   released = 0n;
   creator = 0n;
   platform = 0n;
+  operationsDebt = 0n;
   treasuryReady = 0n;
+  treasuryCredited = 0n;
+  treasurySpent = 0n;
+  netPlatformRevenue = 0n;
   spent = 0n;
   burned = 0n;
   cycleLot = 0n;
@@ -77,15 +81,26 @@ export class BuybackEngine {
     this.receipts.add(receipt);
     this.held += a.buyback;
     this.creator += a.creator;
-    this.platform += a.platform;
+    const repayment = min(a.platform, this.operationsDebt);
+    this.operationsDebt -= repayment;
+    this.platform += a.platform - repayment;
     return true;
+  }
+  recordOperationsCost(cost: bigint) {
+    amount(cost);
+    const paid = min(this.platform, cost);
+    this.platform -= paid;
+    this.operationsDebt += cost - paid;
   }
   creditNetPlatformRevenue(receipt: string, net: bigint) {
     amount(net);
     if (!receipt) throw new Error('Receipt ID required');
     if (this.receipts.has(receipt)) return false;
     this.receipts.add(receipt);
-    this.treasuryReady += fraction(net, POLICY.treasuryBuybackBps);
+    this.netPlatformRevenue += net;
+    const allocation = fraction(net, POLICY.treasuryBuybackBps);
+    this.treasuryCredited += allocation;
+    this.treasuryReady += allocation;
     return true;
   }
   observe(price: number, at: number, now = at) {
@@ -187,8 +202,18 @@ export class BuybackEngine {
       this.lots.push(lot);
       batch.push(lot);
     }
-    if (stream === 'dip') this.released = available;
-    else {
+    if (stream === 'dip') {
+      this.released = available;
+      if (
+        !batch.length &&
+        available > 0n &&
+        available < POLICY.minLot + costCeiling
+      ) {
+        this.held += available;
+        this.released = 0n;
+        this.cycleLot = 0n;
+      }
+    } else {
       this.treasuryReady = available;
       if (batch.length) this.lastTreasuryAt = now;
     }
@@ -236,9 +261,122 @@ export class BuybackEngine {
     if (l.stream === 'dip') this.released += unused;
     else this.treasuryReady += unused;
     this.spent += actualDebit;
+    if (l.stream === 'treasury') this.treasurySpent += actualDebit;
     this.burned += burned;
     l.status = outcome;
     return true;
+  }
+  checkpoint() {
+    return {
+      version: 1,
+      ...this.snapshot(),
+      cycleLot: this.cycleLot.toString(),
+      lastTreasuryAt: Number.isFinite(this.lastTreasuryAt)
+        ? this.lastTreasuryAt
+        : null,
+      lastPriceAt: Number.isFinite(this.lastPriceAt) ? this.lastPriceAt : null,
+      lastPrice: this.lastPrice,
+      observations: this.observations,
+      receipts: [...this.receipts],
+    };
+  }
+  static restore(value: unknown) {
+    if (!value || typeof value !== 'object')
+      throw new Error('Invalid engine checkpoint');
+    const v = value as Record<string, any>;
+    for (const key of [
+      'operationsDebt',
+      'treasuryCredited',
+      'treasurySpent',
+      'netPlatformRevenue',
+    ])
+      if (v[key] === undefined) v[key] = '0';
+    if (v.version !== 1) throw new Error('Unsupported engine checkpoint');
+    const e = new BuybackEngine();
+    for (const key of [
+      'held',
+      'released',
+      'creator',
+      'platform',
+      'operationsDebt',
+      'treasuryReady',
+      'treasuryCredited',
+      'treasurySpent',
+      'netPlatformRevenue',
+      'spent',
+      'burned',
+      'cycleLot',
+    ] as const) {
+      if (typeof v[key] !== 'string' || !/^\d+$/.test(v[key]))
+        throw new Error('Invalid checkpoint amount');
+      e[key] = BigInt(v[key]);
+    }
+    if (
+      typeof v.armed !== 'boolean' ||
+      typeof v.halted !== 'boolean' ||
+      !['curve', 'pumpswap'].includes(v.venue)
+    )
+      throw new Error('Invalid checkpoint state');
+    e.armed = v.armed;
+    e.halted = v.halted;
+    e.venue = v.venue;
+    for (const key of ['lastTreasuryAt', 'lastPriceAt'] as const) {
+      if (v[key] !== null && !Number.isFinite(v[key]))
+        throw new Error('Invalid checkpoint time');
+      e[key] = v[key] ?? -Infinity;
+    }
+    if (
+      !Number.isFinite(v.lastPrice) ||
+      v.lastPrice < 0 ||
+      !Array.isArray(v.observations) ||
+      !Array.isArray(v.receipts) ||
+      !Array.isArray(v.lots)
+    )
+      throw new Error('Invalid checkpoint records');
+    e.lastPrice = v.lastPrice;
+    e.observations = v.observations.map((p: any) => {
+      if (!Number.isFinite(p.price) || p.price <= 0 || !Number.isFinite(p.at))
+        throw new Error('Invalid price observation');
+      return { price: p.price, at: p.at };
+    });
+    e.receipts = new Set(
+      v.receipts.map((r: unknown) => {
+        if (typeof r !== 'string') throw new Error('Invalid receipt');
+        return r;
+      }),
+    );
+    const ids = new Set<string>();
+    e.lots = v.lots.map((l: any) => {
+      if (
+        typeof l.id !== 'string' ||
+        ids.has(l.id) ||
+        !['dip', 'treasury'].includes(l.stream) ||
+        !['reserved', 'confirmed', 'failed', 'uncertain'].includes(l.status) ||
+        !Number.isFinite(l.sendAfter)
+      )
+        throw new Error('Invalid checkpoint lot');
+      ids.add(l.id);
+      for (const key of ['purchase', 'costCeiling', 'reserved'])
+        if (typeof l[key] !== 'string' || !/^\d+$/.test(l[key]))
+          throw new Error('Invalid lot amount');
+      if (BigInt(l.reserved) !== BigInt(l.purchase) + BigInt(l.costCeiling))
+        throw new Error('Inconsistent reservation');
+      return {
+        ...l,
+        purchase: BigInt(l.purchase),
+        costCeiling: BigInt(l.costCeiling),
+        reserved: BigInt(l.reserved),
+      };
+    });
+    return e;
+  }
+  cancelUnsent(id: string) {
+    const l = this.lots.find((l) => l.id === id);
+    if (!l || l.status !== 'reserved' || l.signature)
+      throw new Error('Only unsigned reservations can be cancelled');
+    if (l.stream === 'dip') this.released += l.reserved;
+    else this.treasuryReady += l.reserved;
+    l.status = 'failed';
   }
   snapshot() {
     return JSON.parse(
@@ -248,7 +386,11 @@ export class BuybackEngine {
           released: this.released,
           creator: this.creator,
           platform: this.platform,
+          operationsDebt: this.operationsDebt,
           treasuryReady: this.treasuryReady,
+          treasuryCredited: this.treasuryCredited,
+          treasurySpent: this.treasurySpent,
+          netPlatformRevenue: this.netPlatformRevenue,
           spent: this.spent,
           burned: this.burned,
           armed: this.armed,
