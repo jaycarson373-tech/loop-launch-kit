@@ -9,7 +9,7 @@ import {
 } from '../lib/session.ts';
 const secret = 'a'.repeat(64),
   origin = 'https://loop.example';
-test('workspace sessions reject tampering, expiry, another origin and a rotated key', async () => {
+await test('workspace sessions reject tampering, expiry, another origin and a rotated key', async () => {
   const now = 1800000000000;
   const value = await issueSession(secret, origin, now);
   assert.equal(await verifySession(value, secret, origin, now), true);
@@ -29,7 +29,7 @@ test('workspace sessions reject tampering, expiry, another origin and a rotated 
   assert.equal(await verifySession(value, secret, origin, now - 10000), false);
   assert.equal(await verifySession('malformed', secret, origin, now), false);
 });
-test('workspace password checks and cookies', async () => {
+await test('workspace password checks and cookies', async () => {
   assert.equal(await passwordMatches(secret, secret), true);
   assert.equal(await passwordMatches('a'.repeat(63), secret), false);
   assert.equal(await passwordMatches('b'.repeat(64), secret), false);

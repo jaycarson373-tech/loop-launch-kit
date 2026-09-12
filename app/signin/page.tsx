@@ -27,7 +27,7 @@ export default function SignIn() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ password }),
             });
-            const data = await response.json();
+            const data = (await response.json()) as { error?: string };
             if (!response.ok) throw new Error(data.error || 'Sign-in failed.');
             window.location.assign('/');
           } catch (cause) {

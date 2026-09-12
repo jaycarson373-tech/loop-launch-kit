@@ -173,6 +173,24 @@ export function LoopProvider({ children }: { children: ReactNode }) {
             </p>
           </div>
         )}
+        {config?.signedIn && config.signInUrl === '/signin' && (
+          <div className="inline-note">
+            <p>Operator workspace</p>
+            <button
+              type="button"
+              onClick={async () => {
+                const response = await fetch('/api/loop/session', {
+                  method: 'DELETE',
+                });
+                if (response.ok) window.location.assign('/');
+                else setError('Could not sign out. Try again.');
+              }}
+            >
+              Sign out
+            </button>
+            {error && <p role="alert">{error}</p>}
+          </div>
+        )}
         {children}
         <Dialog open={opened} onOpenChange={setOpened}>
           <DialogContent className="loop-dialog">

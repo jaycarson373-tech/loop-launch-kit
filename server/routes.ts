@@ -274,7 +274,7 @@ export async function handle(request: Request) {
       if (plan.image) {
         const image = await db()
           .prepare('SELECT owner FROM assets WHERE id=?')
-          .bind(plan.image.split('/').pop())
+          .bind(plan.image.split('/').pop()!)
           .first<{ owner: string }>();
         assert(
           image?.owner === owner,

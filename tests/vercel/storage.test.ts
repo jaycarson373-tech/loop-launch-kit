@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SqlDatabase, SqlArtworkStore } from '../../server/sql-storage.ts';
 
-test('Vercel storage persists across connections and rolls back a failed ledger batch', async () => {
+await test('Vercel storage persists across connections and rolls back a failed ledger batch', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'loop-sql-'));
   const url = `file:${join(directory, 'test.db')}`;
   const client = createClient({ url });

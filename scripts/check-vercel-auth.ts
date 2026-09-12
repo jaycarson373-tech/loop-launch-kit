@@ -8,8 +8,11 @@ assert.equal(
   401,
 );
 assert.equal(
-  (await (await fetch(`${endpoint}config`, { headers: forged })).json())
-    .signedIn,
+  (
+    (await (await fetch(`${endpoint}config`, { headers: forged })).json()) as {
+      signedIn: boolean;
+    }
+  ).signedIn,
   false,
 );
 const login = (password: string, from = origin) =>
