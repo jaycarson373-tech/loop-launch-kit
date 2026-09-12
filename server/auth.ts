@@ -13,6 +13,7 @@ export function authStatus() {
       env.AUTH_MODE === 'sites' ||
       !!(
         env.TURSO_DATABASE_URL &&
+        (env.TURSO_DATABASE_URL.startsWith('file:') || env.TURSO_AUTH_TOKEN) &&
         (env.LOOP_ADMIN_PASSWORD?.length ?? 0) >= 32 &&
         (env.LOOP_SESSION_SECRET?.length ?? 0) >= 32 &&
         env.LOOP_ADMIN_PASSWORD !== env.LOOP_SESSION_SECRET

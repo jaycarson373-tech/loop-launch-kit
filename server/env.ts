@@ -8,6 +8,7 @@ export type LoopEnv = {
   LOOP_ADMIN_PASSWORD?: string;
   LOOP_SESSION_SECRET?: string;
   TURSO_DATABASE_URL?: string;
+  TURSO_AUTH_TOKEN?: string;
   LOOP_RPC_URL?: string;
   LOOP_CLUSTER?: string;
   LOOP_TREASURY_ADDRESS?: string;
