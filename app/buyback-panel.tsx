@@ -1,5 +1,5 @@
 'use client';
-import { LiveHistory, useLoop, requestApi } from './live';
+import { LiveHistory, useLoop, requestApi, type LiveTreasury } from './live';
 import { useState, useEffect } from 'react';
 import {
   RefreshCw,
@@ -280,12 +280,12 @@ export function Metric({
 }
 export function TreasuryPanel() {
   const { refresh } = useLoop();
-  const [treasury, setTreasury] = useState<any>(null);
+  const [treasury, setTreasury] = useState<LiveTreasury | null>(null);
   const [treasuryError, setTreasuryError] = useState('');
   useEffect(() => {
     let active = true;
     const load = () =>
-      requestApi('treasury')
+      requestApi<LiveTreasury>('treasury')
         .then((d) => {
           if (active) setTreasury(d);
         })

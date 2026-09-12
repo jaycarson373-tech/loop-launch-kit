@@ -184,10 +184,19 @@ export async function handle(request: Request) {
           .prepare(
             "SELECT t.id,t.kind,t.status,t.signature,t.details,t.created_at,l.plan,l.mint FROM transactions t JOIN launches l ON l.id=t.launch_id WHERE t.status IN ('confirmed','failed','uncertain','submitted') AND t.kind='buyback' ORDER BY t.created_at DESC LIMIT 100",
           )
-          .all()
+          .all<{
+            id: string;
+            kind: string;
+            status: string;
+            signature: string | null;
+            details: string;
+            created_at: number;
+            plan: string;
+            mint: string | null;
+          }>()
       ).results;
       return json({
-        transactions: rows.map((r: any) => ({
+        transactions: rows.map((r) => ({
           ...r,
           details: JSON.parse(r.details),
           name: JSON.parse(r.plan).name,

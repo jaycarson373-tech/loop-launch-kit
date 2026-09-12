@@ -31,6 +31,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import type { BuybackEngine } from '../lib/buybacks';
+import type { serviceReadiness } from '../server/readiness';
 import {
   Wallet,
   ArrowUpRight,
@@ -59,11 +61,41 @@ export type LiveLaunch = {
   wallet: string;
   status: string;
   plan: Record<string, string>;
-  balances: Record<string, any>;
+  balances: ReturnType<BuybackEngine['snapshot']>;
   lastError: string | null;
-  transactions?: Record<string, any>[];
+  transactions?: LiveTransaction[];
 };
-export async function requestApi<T = any>(
+export type LiveTransaction = {
+  id: string;
+  kind: string;
+  status: string;
+  signature: string | null;
+  name?: string;
+  details: {
+    purchaseCeiling?: string;
+    receipt?: { debit: string; burned: string };
+  };
+};
+type PreparedLaunch = {
+  jobId: string;
+  unsigned: string;
+  blockHeight: number;
+  feeLamports?: string;
+  details: {
+    payer: string;
+    blockhash: string;
+    mint: string;
+    feeLamports?: string;
+    estimatedWalletDebitLamports: string;
+  };
+};
+export type LiveTreasury = {
+  treasury: string | null;
+  mint: string | null;
+  automationEnabled: boolean;
+  balances: LiveLaunch['balances'] | null;
+};
+export async function requestApi<T = unknown>(
   path: string,
   body?: unknown,
 ): Promise<T> {
@@ -72,9 +104,13 @@ export async function requestApi<T = any>(
     headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  const data = (await response.json()) as any;
-  if (!response.ok) throw new Error(data.error || 'Request failed');
-  return data;
+  const data: unknown = await response.json();
+  if (!response.ok) {
+    const error =
+      data && typeof data === 'object' && 'error' in data ? data.error : null;
+    throw new Error(typeof error === 'string' ? error : 'Request failed');
+  }
+  return data as T;
 }
 const makeClient = (chain: LiveConfig['chain']) =>
   createClient().use(walletSigner({ chain }));
@@ -126,6 +162,8 @@ export function LoopProvider({ children }: { children: ReactNode }) {
           <div className="inline-note">
             <Info />
             <p>
+              {/* Full navigation is required for the Sites authentication redirect. */}
+              {/* oxlint-disable-next-line next/no-html-link-for-pages */}
               <a href="/signin-with-chatgpt?return_to=/" target="_top">
                 Sign in to your workspace
               </a>{' '}
@@ -229,7 +267,7 @@ export function LiveLaunchFlow({
   onDone: () => void;
 }) {
   const { client, address, config, openWallet, changed } = useLoop();
-  const [prepared, setPrepared] = useState<any>(null),
+  const [prepared, setPrepared] = useState<PreparedLaunch | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [status, setStatus] = useState('');
@@ -243,9 +281,12 @@ export function LiveLaunchFlow({
         return;
       }
       mintSigner.current ??= await generateKeyPairSigner();
-      const result = await requestApi(`launches/${id}/prepare`, {
-        mint: mintSigner.current.address,
-      });
+      const result = await requestApi<PreparedLaunch>(
+        `launches/${id}/prepare`,
+        {
+          mint: mintSigner.current.address,
+        },
+      );
       setPrepared(result);
       changed();
     } catch (e) {
@@ -290,9 +331,14 @@ export function LiveLaunchFlow({
         transaction,
       ]);
       setStatus('Recording your signed transaction…');
-      const result = await requestApi(`transactions/${prepared.jobId}/submit`, {
-        signed: bytes64(new Uint8Array(getTransactionEncoder().encode(signed))),
-      });
+      const result = await requestApi<{ signature: string }>(
+        `transactions/${prepared.jobId}/submit`,
+        {
+          signed: bytes64(
+            new Uint8Array(getTransactionEncoder().encode(signed)),
+          ),
+        },
+      );
       setStatus(`Submitted: ${result.signature}. Checking confirmation…`);
       await requestApi(`launches/${id}/reconcile`, {});
       changed();
@@ -388,11 +434,7 @@ export function LiveLaunchFlow({
       >
         Cancel an unsigned quote
       </button>
-      {status && (
-        <p className="notice" role="status">
-          {status}
-        </p>
-      )}
+      {status && <output className="notice">{status}</output>}
       {error && (
         <p role="alert" className="error">
           {error}
@@ -413,7 +455,7 @@ export function ServerLaunches({
     [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
-    requestApi('launches')
+    requestApi<{ launches: LiveLaunch[] }>('launches')
       .then((d) => {
         if (active) {
           setRows(d.launches);
@@ -430,11 +472,7 @@ export function ServerLaunches({
     `https://solscan.io/tx/${sig}${config?.cluster === 'devnet' ? '?cluster=devnet' : ''}`;
   return (
     <div>
-      {loading && (
-        <p className="body-copy" role="status">
-          Loading your launches…
-        </p>
-      )}
+      {loading && <output className="body-copy">Loading your launches…</output>}
       {error && (
         <p className="error" role="alert">
           {error}
@@ -486,7 +524,9 @@ export function ServerLaunches({
                 className="primary"
                 onClick={async () => {
                   try {
-                    setSelected(await requestApi(`launches/${row.id}`));
+                    setSelected(
+                      await requestApi<LiveLaunch>(`launches/${row.id}`),
+                    );
                   } catch (e) {
                     setError((e as Error).message);
                   }
@@ -532,7 +572,9 @@ export function ServerLaunches({
                           {},
                         );
                         setSelected(
-                          await requestApi(`launches/${selected.id}`),
+                          await requestApi<LiveLaunch>(
+                            `launches/${selected.id}`,
+                          ),
                         );
                         changed();
                       } catch (e) {
@@ -578,7 +620,7 @@ export function ExploreLive() {
   const [rows, setRows] = useState<LiveLaunch[]>([]),
     [error, setError] = useState('');
   useEffect(() => {
-    requestApi('explore')
+    requestApi<{ launches: LiveLaunch[] }>('explore')
       .then((d) => setRows(d.launches))
       .catch((e) => setError(e.message));
   }, [refresh]);
@@ -625,12 +667,12 @@ export function ExploreLive() {
 }
 export function LiveHistory() {
   const { refresh, config } = useLoop();
-  const [rows, setRows] = useState<any[]>([]),
+  const [rows, setRows] = useState<LiveTransaction[]>([]),
     [error, setError] = useState('');
   useEffect(() => {
     let stopped = false;
     const load = () =>
-      requestApi('history')
+      requestApi<{ transactions: LiveTransaction[] }>('history')
         .then((d) => {
           if (!stopped) setRows(d.transactions);
         })
@@ -704,7 +746,11 @@ export function LaunchReadiness() {
             setBusy(true);
             setError('');
             try {
-              setResult(await requestApi('readiness'));
+              setResult(
+                await requestApi<Awaited<ReturnType<typeof serviceReadiness>>>(
+                  'readiness',
+                ),
+              );
             } catch (e) {
               setError((e as Error).message);
             } finally {

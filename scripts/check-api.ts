@@ -34,7 +34,7 @@ async function api(
       options.raw || (body === undefined ? undefined : JSON.stringify(body)),
   });
   const text = await response.text();
-  let data: any;
+  let data: Record<string, unknown>;
   try {
     data = JSON.parse(text);
   } catch {
@@ -59,7 +59,9 @@ assert.equal(readiness.data.servicesReady, false);
 assert.equal(readiness.data.executionEnabled, false);
 for (const id of ['database', 'artwork'])
   assert.equal(
-    readiness.data.checks.find((c: { id: string }) => c.id === id)?.ok,
+    (readiness.data.checks as { id: string; ok: boolean }[]).find(
+      (c: { id: string }) => c.id === id,
+    )?.ok,
     true,
   );
 assert.equal(
@@ -95,9 +97,11 @@ assert.equal(
 const created = await api('launches', { plan, wallet });
 assert.equal(created.status, 201);
 const id = created.data.id;
+assert.equal(typeof id, 'string');
+assert.ok(typeof id === 'string');
 const loaded = await api(`launches/${id}`);
-assert.equal(loaded.data.plan.payout, wallet);
-assert.equal(loaded.data.balances.held, '0');
+assert.equal((loaded.data.plan as { payout: string }).payout, wallet);
+assert.equal((loaded.data.balances as { held: string }).held, '0');
 assert.equal(loaded.data.status, 'draft');
 const updated = await api('launches', {
   id,
@@ -125,7 +129,7 @@ const png = Buffer.from(
 );
 const asset = await api('assets', undefined, { raw: png, mime: 'image/png' });
 assert.equal(asset.status, 201);
-const image = await fetch(`${origin}${asset.data.image}`, {
+const image = await fetch(`${origin}${String(asset.data.image)}`, {
   headers: { Cookie: cookie },
 });
 assert.equal(image.status, 200);

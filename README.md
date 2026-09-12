@@ -1,8 +1,8 @@
-# Loop Finance
+# Loop Finance launch kit
 
 Independent Solana launchpad inspired by Revolve's public product. The app includes server-persisted launch plans, artwork storage, Wallet Standard connection, Pump launch preparation and signing, a durable buyback ledger, transaction reconciliation, and managed-signer/keeper services.
 
-**Real-funds launch status: NOT READY.** See [the dated readiness report](LAUNCH_READINESS.md).
+**Live activation pending operator setup and funded acceptance.** See [the dated readiness report](LAUNCH_READINESS.md).
 
 **Deployment status:** the private website works. Financial execution is configuration-gated. A funded token launch, managed KMS signer, continuously running keeper, and live buyback acceptance run have not been deployed or performed. Do not equate passing local tests with live trading readiness.
 
@@ -25,6 +25,8 @@ npm run lint
 npm run build
 # With the dev server running and live credentials absent:
 npm run test:api
+# Or start/stop the local test server automatically:
+bash scripts/verify-api.sh
 npm run simulate -- 10 55
 ```
 
@@ -65,9 +67,9 @@ The checked-in `config/site.env.example` and `config/signer.env.example` contain
 
 Configuration is validated for HTTPS URLs, public addresses, independent secret tokens and the selected cluster. Credentials alone never enable execution: `LOOP_EXECUTION_ENABLED=true` is also required. The guide's readiness panel checks D1, R2, RPC genesis/programs, managed treasury key access and a keeper heartbeat within 90 seconds. Preparing a launch requires all these service checks to pass. Service checks do not certify a funded acceptance run.
 
-Pump's devnet program supported creation, curve buy/burn and fee collection in our local Surfpool simulation. The same audit failed at curve migration with a program stack access violation; PumpSwap buy/burn acceptance remains incomplete. See the report and `scripts/audit/protocol.cjs` for reproducibility.
+The complete local mainnet-fork simulation passes: token creation, curve buy/burn, fee claim, payout, curve completion, migration and PumpSwap buy/burn. Signing policy checks also pass for the actual buy/claim/payout instructions. The earlier devnet-fork migration remains unresolved; do not treat it as validated. Run `bash scripts/verify-protocol.sh` with Surfpool 1.5.0 installed, or dispatch the `Verify Pump protocol` GitHub workflow.
 
-See `keeper/README.md` for Google Cloud KMS and runner deployment. The treasury must be controlled by the configured managed key for automated treasury buys. A personal wallet's public address alone cannot make that service sign. The runner must have an approved path through the private Sites audience gate; the application bearer token alone cannot bypass it. No cloud account or service has been provisioned by this repository.
+See `infra/README.md` and `keeper/README.md` for the scripted Google Cloud KMS deployment and runner setup. The treasury must be controlled by the configured managed key for automated treasury buys. A personal wallet's public address alone cannot make that service sign. The runner must have an approved path through the private Sites audience gate; the application bearer token alone cannot bypass it. No cloud account or service has been provisioned by this repository.
 
 Activation requires the owner's network and treasury choice, RPC/signing infrastructure, deployed scheduler, funded test acceptance, and review of the final execution policy. No seed phrase belongs in chat, source, environment variables, or the browser.
 
@@ -77,9 +79,9 @@ Unit tests also cover signed-ledger crash rollback, stale leases, replay protect
 
 A live wallet/network acceptance run and independent custody/trading audit remain outstanding. Transactions that are signed but cannot be proven confirmed or failed remain held indefinitely; do not manually release their funds without network evidence. The bounded legacy packet format rejects oversized transactions rather than silently splitting an atomic buy/burn. Background retirement/sweeping is not implemented. Trading frequency depends on the keeper's capacity and available RPC service; the current runner handles three launches per request.
 
-Dependency scanning still needs review for legacy Pump SDK transitive packages; do not use `npm audit fix --force` to replace supported SDKs with obsolete major versions. The Worker excludes Anchor's filesystem workspace path. No claim of a clean independent security audit is made.
+Dependency updates remove all high/critical audit findings. The native integer addon is replaced by a bounds-checked JavaScript compatibility package. Two moderate findings remain in an unused legacy server dependency; the review is in `SECURITY_REVIEW.md`. This is not an independent custody audit.
 
-Browser UI testing was not requested. WebMCP `simulate_loop_buybacks` is feature-detected; a compatible browser validation context was unavailable. Compilation and HTTP checks do not replace that UI check. The starter’s strict lint command currently reports remaining type-style/accessibility findings in the app and bundled UI components; lint is not represented as a passing CI gate.
+Lint is a passing CI gate. The CI suite also checks a clean install, unit tests, types, production build, authenticated local D1/R2 HTTP flows and readiness guards. Browser wallet interaction and live KMS signing/finalization still require the funded acceptance run. WebMCP `simulate_loop_buybacks` is feature-detected and remains a simulation.
 
 ## Reference findings
 

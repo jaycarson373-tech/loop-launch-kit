@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { createPublicKey, timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { KeyManagementServiceClient } from '@google-cloud/kms';
+import { validAddress } from '../lib/launch.ts';
 import { publicAddress, reviewSigningPayload } from './solana-boundary.ts';
 const kms = new KeyManagementServiceClient();
 function required(name: string) {
@@ -29,7 +30,7 @@ export function authorized(header: string | undefined, secret: string) {
 export async function provision(id: string, payout: string) {
   const name = keyName(id),
     hex = Buffer.from(payout).toString('hex');
-  if (payout.length < 32 || payout.length > 44)
+  if (typeof payout !== 'string' || !validAddress(payout))
     throw new Error('Payout address required.');
   try {
     await kms.createCryptoKey({
@@ -141,6 +142,20 @@ export function startSigner() {
       }
       if (req.method !== 'POST') throw new Error('POST required.');
       const input = JSON.parse(Buffer.concat(chunks).toString());
+      if (!input || typeof input !== 'object' || Array.isArray(input))
+        throw new Error('An object body is required.');
+      if (
+        req.url === '/v1/wallets' &&
+        (typeof input.launchId !== 'string' || typeof input.payout !== 'string')
+      )
+        throw new Error('Launch ID and payout required.');
+      if (
+        req.url === '/v1/sign' &&
+        (typeof input.launchId !== 'string' ||
+          typeof input.address !== 'string' ||
+          typeof input.transaction !== 'string')
+      )
+        throw new Error('Signing fields required.');
       const result =
         req.url === '/v1/health'
           ? await health()
@@ -161,6 +176,8 @@ export function startSigner() {
         .end(JSON.stringify({ error: 'Signing request rejected.' }));
     }
   });
+  server.requestTimeout = 30000;
+  server.headersTimeout = 10000;
   server.listen(Number(process.env.PORT || 8080), '0.0.0.0');
   return server;
 }

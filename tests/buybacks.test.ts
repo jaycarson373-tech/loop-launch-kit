@@ -15,7 +15,7 @@ function ready() {
   e.observe(50, 1000);
   return e;
 }
-test('allocations conserve lamports including rounding dust', () => {
+void test('allocations conserve lamports including rounding dust', () => {
   for (const n of [1n, 3n, 999999999n, 50n * LAMPORTS])
     for (const main of [false, true]) {
       const a = allocateFees(n, main);
@@ -23,18 +23,18 @@ test('allocations conserve lamports including rounding dust', () => {
     }
   assert.equal(allocateFees(LAMPORTS, true).buyback, 800000000n);
 });
-test('reject negative values and malformed SOL', () => {
+void test('reject negative values and malformed SOL', () => {
   assert.throws(() => allocateFees(-1n));
   for (const x of ['NaN', 'Infinity', '-1', '1e3', '1.0000000001'])
     assert.throws(() => parseSol(x));
   assert.equal(parseSol('1.000000001'), 1000000001n);
 });
-test('fee credits are idempotent', () => {
+void test('fee credits are idempotent', () => {
   const e = ready();
   assert.equal(e.creditCreatorFees('r', 10n * LAMPORTS), false);
   assert.equal(e.creator, LAMPORTS);
 });
-test('dip threshold boundary releases exactly once', () => {
+void test('dip threshold boundary releases exactly once', () => {
   const e = new BuybackEngine();
   e.creditCreatorFees('r', LAMPORTS);
   e.observe(100, 0);
@@ -42,13 +42,13 @@ test('dip threshold boundary releases exactly once', () => {
   assert.equal(e.observe(50, 2000), true);
   assert.equal(e.observe(49, 3000), false);
 });
-test('new revenue stays held during an active cycle', () => {
+void test('new revenue stays held during an active cycle', () => {
   const e = ready();
   e.creditCreatorFees('new', LAMPORTS);
   assert.equal(e.held, 700000000n);
   assert.equal(e.released, 7n * LAMPORTS);
 });
-test('stale, missing, zero and unordered prices fail closed', () => {
+void test('stale, missing, zero and unordered prices fail closed', () => {
   const e = ready();
   for (const p of [0, -1, NaN, Infinity])
     assert.throws(() => e.observe(p, 2000));
@@ -56,13 +56,13 @@ test('stale, missing, zero and unordered prices fail closed', () => {
   assert.throws(() => e.observe(10, 2000, 40000));
   assert.equal(e.reserveBatch(40000, 5000n).length, 0);
 });
-test('rolling high expires and does not trigger on old data', () => {
+void test('rolling high expires and does not trigger on old data', () => {
   const e = new BuybackEngine();
   e.creditCreatorFees('r', LAMPORTS);
   e.observe(100, 0);
   assert.equal(e.observe(40, 1200001), false);
 });
-test('four reservations have two-second spacing and no overlapping batches', () => {
+void test('four reservations have two-second spacing and no overlapping batches', () => {
   const e = ready(),
     lots = e.reserveBatch(1000, 5000n);
   assert.equal(lots.length, 4);
@@ -77,7 +77,7 @@ test('four reservations have two-second spacing and no overlapping batches', () 
   );
   assert.equal(e.creator, LAMPORTS);
 });
-test('uncertain receipt keeps money reserved', () => {
+void test('uncertain receipt keeps money reserved', () => {
   const e = ready(),
     lots = e.reserveBatch(1000, 5000n);
   const remaining = e.released;
@@ -85,7 +85,7 @@ test('uncertain receipt keeps money reserved', () => {
   assert.equal(e.released, remaining);
   assert.equal(e.reserveBatch(2000, 5000n).length, 0);
 });
-test('successful settlement uses actual debit and is idempotent', () => {
+void test('successful settlement uses actual debit and is idempotent', () => {
   const e = ready(),
     [l] = e.reserveBatch(1000, 5000n);
   e.attachSignature(l.id, 'verified-test-signature');
@@ -95,7 +95,7 @@ test('successful settlement uses actual debit and is idempotent', () => {
   assert.equal(e.burned, 123n);
   assert.equal(e.settle(l.id, 'confirmed', l.purchase + 1000n, 123n), false);
 });
-test('failed transaction books fees but no tokens', () => {
+void test('failed transaction books fees but no tokens', () => {
   const e = ready(),
     [l] = e.reserveBatch(1000, 5000n);
   e.attachSignature(l.id, 'failed-signature');
@@ -103,7 +103,7 @@ test('failed transaction books fees but no tokens', () => {
   assert.equal(e.spent, 5000n);
   assert.equal(e.burned, 0n);
 });
-test('over-budget receipt halts without releasing reservation', () => {
+void test('over-budget receipt halts without releasing reservation', () => {
   const e = ready(),
     [l] = e.reserveBatch(1000, 5000n);
   e.attachSignature(l.id, 'mismatch');
@@ -112,7 +112,7 @@ test('over-budget receipt halts without releasing reservation', () => {
   assert.equal(e.halted, true);
   assert.equal(e.released, before);
 });
-test('dust never borrows payout money', () => {
+void test('dust never borrows payout money', () => {
   const e = new BuybackEngine();
   e.creditCreatorFees('r', 10000n);
   e.observe(100, 0);
@@ -120,7 +120,7 @@ test('dust never borrows payout money', () => {
   assert.equal(e.reserveBatch(1000, 5000n).length, 0);
   assert.equal(e.creator, 1000n);
 });
-test('migration pauses execution and resets reference', () => {
+void test('migration pauses execution and resets reference', () => {
   const e = ready();
   e.migrate('pumpswap');
   assert.equal(e.reserveBatch(1000, 5000n).length, 0);
@@ -129,7 +129,7 @@ test('migration pauses execution and resets reference', () => {
   e.observe(50, 3000);
   assert.equal(e.reserveBatch(3000, 5000n).length, 4);
 });
-test('treasury stream uses half of independently verified net revenue', () => {
+void test('treasury stream uses half of independently verified net revenue', () => {
   const e = new BuybackEngine();
   e.creditNetPlatformRevenue('net', 2n * LAMPORTS);
   e.creditNetPlatformRevenue('net', 2n * LAMPORTS);
@@ -142,7 +142,7 @@ test('treasury stream uses half of independently verified net revenue', () => {
   assert.equal(e.reserveBatch(1000, 5000n, 'treasury').length, 0);
   assert.equal(e.creator, 0n);
 });
-test('simulation returns data and cannot spend', () => {
+void test('simulation returns data and cannot spend', () => {
   const s = simulateBuybacks({ revenue: 10, drop: 55, main: false });
   assert.equal(s.mode, 'simulation');
   assert.equal(s.allocation.buyback, 7);
@@ -156,7 +156,7 @@ test('simulation returns data and cannot spend', () => {
   );
 });
 
-test('durable checkpoint preserves every pending reservation and trigger reference', () => {
+void test('durable checkpoint preserves every pending reservation and trigger reference', () => {
   const e = ready();
   e.creditNetPlatformRevenue('net', 2n * LAMPORTS);
   const [l] = e.reserveBatch(1000, 5000n);
@@ -168,7 +168,7 @@ test('durable checkpoint preserves every pending reservation and trigger referen
   assert.equal(restored.reserveBatch(2000, 5000n).length, 0);
   assert.equal(restored.creditCreatorFees('r', 10n * LAMPORTS), false);
 });
-test('invalid checkpoint cannot manufacture negative funds or duplicate reservations', () => {
+void test('invalid checkpoint cannot manufacture negative funds or duplicate reservations', () => {
   const e = ready();
   e.reserveBatch(1000, 5000n);
   const bad = e.checkpoint();
@@ -178,7 +178,7 @@ test('invalid checkpoint cannot manufacture negative funds or duplicate reservat
   duplicate.lots.push(duplicate.lots[0]);
   assert.throws(() => BuybackEngine.restore(duplicate));
 });
-test('unsigned reservations can be recovered, signed ones cannot be released', () => {
+void test('unsigned reservations can be recovered, signed ones cannot be released', () => {
   const e = ready(),
     [a, b] = e.reserveBatch(1000, 5000n);
   e.cancelUnsent(a.id);
@@ -186,7 +186,7 @@ test('unsigned reservations can be recovered, signed ones cannot be released', (
   assert.throws(() => e.cancelUnsent(b.id));
   assert.throws(() => e.cancelUnsent(a.id));
 });
-test('operating subsidy is repaid before net platform revenue accrues', () => {
+void test('operating subsidy is repaid before net platform revenue accrues', () => {
   const e = new BuybackEngine();
   e.recordOperationsCost(100n);
   e.creditCreatorFees('fees', 1000n);

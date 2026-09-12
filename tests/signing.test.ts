@@ -14,7 +14,8 @@ const owner = Keypair.generate(),
 function payload(to = recipient.publicKey) {
   const tx = new Transaction({
     feePayer: owner.publicKey,
-    recentBlockhash: Keypair.generate().publicKey.toBase58(),
+    blockhash: Keypair.generate().publicKey.toBase58(),
+    lastValidBlockHeight: 100,
   }).add(
     SystemProgram.transfer({
       fromPubkey: owner.publicKey,
@@ -24,19 +25,23 @@ function payload(to = recipient.publicKey) {
   );
   return tx;
 }
-test('signer policy rejects unknown payout destinations', () => {
+void test('signer policy rejects unknown payout destinations', () => {
   const tx = payload(other.publicKey);
   assert.throws(() =>
     reviewSigningPayload(
-      tx.serialize({ requireAllSignatures: false }).toString('base64'),
+      Buffer.from(tx.serialize({ requireAllSignatures: false })).toString(
+        'base64',
+      ),
       owner.publicKey.toBase58(),
       [recipient.publicKey.toBase58()],
     ),
   );
 });
-test('signer attaches and verifies signatures without changing the reviewed message', () => {
+void test('signer attaches and verifies signatures without changing the reviewed message', () => {
   const tx = payload(),
-    unsigned = tx.serialize({ requireAllSignatures: false }).toString('base64');
+    unsigned = Buffer.from(
+      tx.serialize({ requireAllSignatures: false }),
+    ).toString('base64');
   const request = reviewSigningPayload(unsigned, owner.publicKey.toBase58(), [
     recipient.publicKey.toBase58(),
   ]);
@@ -47,7 +52,7 @@ test('signer attaches and verifies signatures without changing the reviewed mess
   assert.ok(result.verifySignatures());
   assert.deepEqual(result.serializeMessage(), request.message);
 });
-test('signer rejects an unsupported program and wrong fee payer', () => {
+void test('signer rejects an unsupported program and wrong fee payer', () => {
   const tx = payload();
   tx.add(
     new TransactionInstruction({
@@ -58,7 +63,9 @@ test('signer rejects an unsupported program and wrong fee payer', () => {
   );
   assert.throws(() =>
     reviewSigningPayload(
-      tx.serialize({ requireAllSignatures: false }).toString('base64'),
+      Buffer.from(tx.serialize({ requireAllSignatures: false })).toString(
+        'base64',
+      ),
       owner.publicKey.toBase58(),
       [recipient.publicKey.toBase58()],
     ),
@@ -66,14 +73,16 @@ test('signer rejects an unsupported program and wrong fee payer', () => {
   const valid = payload();
   assert.throws(() =>
     reviewSigningPayload(
-      valid.serialize({ requireAllSignatures: false }).toString('base64'),
+      Buffer.from(valid.serialize({ requireAllSignatures: false })).toString(
+        'base64',
+      ),
       other.publicKey.toBase58(),
       [recipient.publicKey.toBase58()],
     ),
   );
 });
 
-test('signer rejects token approval appended to an otherwise allowed transfer', async () => {
+void test('signer rejects token approval appended to an otherwise allowed transfer', async () => {
   const {
     createApproveInstruction,
     getAssociatedTokenAddressSync,
@@ -90,13 +99,15 @@ test('signer rejects token approval appended to an otherwise allowed transfer', 
   );
   assert.throws(() =>
     reviewSigningPayload(
-      tx.serialize({ requireAllSignatures: false }).toString('base64'),
+      Buffer.from(tx.serialize({ requireAllSignatures: false })).toString(
+        'base64',
+      ),
       owner.publicKey.toBase58(),
       [recipient.publicKey.toBase58()],
     ),
   );
 });
-test('signer rejects unsupported Pump instructions instead of trusting any Pump call', () => {
+void test('signer rejects unsupported Pump instructions instead of trusting any Pump call', () => {
   const tx = payload();
   tx.add(
     new TransactionInstruction({
@@ -107,26 +118,30 @@ test('signer rejects unsupported Pump instructions instead of trusting any Pump 
   );
   assert.throws(() =>
     reviewSigningPayload(
-      tx.serialize({ requireAllSignatures: false }).toString('base64'),
+      Buffer.from(tx.serialize({ requireAllSignatures: false })).toString(
+        'base64',
+      ),
       owner.publicKey.toBase58(),
       [recipient.publicKey.toBase58()],
     ),
   );
 });
-test('signer rejects excessive priority fees', async () => {
+void test('signer rejects excessive priority fees', async () => {
   const { ComputeBudgetProgram } = await import('@solana/web3.js');
   const tx = payload().add(
     ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1_000_000 }),
   );
   assert.throws(() =>
     reviewSigningPayload(
-      tx.serialize({ requireAllSignatures: false }).toString('base64'),
+      Buffer.from(tx.serialize({ requireAllSignatures: false })).toString(
+        'base64',
+      ),
       owner.publicKey.toBase58(),
       [recipient.publicKey.toBase58()],
     ),
   );
 });
-test('signer requires a matching atomic burn and disallows an appended payout on a buy', async () => {
+void test('signer requires a matching atomic burn and disallows an appended payout on a buy', async () => {
   const {
     getAssociatedTokenAddressSync,
     TOKEN_PROGRAM_ID,
@@ -154,11 +169,14 @@ test('signer requires a matching atomic burn and disallows an appended payout on
   });
   const tx = new Transaction({
     feePayer: owner.publicKey,
-    recentBlockhash: Keypair.generate().publicKey.toBase58(),
+    blockhash: Keypair.generate().publicKey.toBase58(),
+    lastValidBlockHeight: 100,
   }).add(buy);
   const review = () =>
     reviewSigningPayload(
-      tx.serialize({ requireAllSignatures: false }).toString('base64'),
+      Buffer.from(tx.serialize({ requireAllSignatures: false })).toString(
+        'base64',
+      ),
       owner.publicKey.toBase58(),
       [recipient.publicKey.toBase58()],
     );

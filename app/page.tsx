@@ -1,4 +1,5 @@
 'use client';
+import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import {
   ArrowUpRight,
@@ -63,29 +64,32 @@ function HomeContent() {
   const [currentId, setCurrentId] = useState('');
   const upload = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
-      if (Array.isArray(saved))
-        setPlans(
-          saved
-            .filter((p) => {
-              try {
-                return (
-                  p.status === 'draft' &&
-                  typeof p.id === 'string' &&
-                  !!validatePlan(p)
-                );
-              } catch {
-                return false;
-              }
-            })
-            .slice(0, 30),
+    const timer = setTimeout(() => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        if (Array.isArray(saved))
+          setPlans(
+            saved
+              .filter((p) => {
+                try {
+                  return (
+                    p.status === 'draft' &&
+                    typeof p.id === 'string' &&
+                    !!validatePlan(p)
+                  );
+                } catch {
+                  return false;
+                }
+              })
+              .slice(0, 30),
+          );
+      } catch {
+        setNotice(
+          'Saved plans could not be read in this browser. You can still export a new plan.',
         );
-    } catch {
-      setNotice(
-        'Saved plans could not be read in this browser. You can still export a new plan.',
-      );
-    }
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
   useEffect(() => {
     const change = () => {
@@ -142,7 +146,7 @@ function HomeContent() {
     setError('');
     try {
       validatePlan(form);
-      const result = await requestApi('launches', {
+      const result = await requestApi<{ id: string }>('launches', {
         id: currentId || undefined,
         wallet: address,
         plan: form,
@@ -283,7 +287,7 @@ function HomeContent() {
             </span>
           </div>
           {notice && (
-            <div className="notice" role="status">
+            <div className="notice" aria-live="polite">
               <Check />
               {notice}
             </div>
@@ -339,7 +343,7 @@ function HomeContent() {
                       </div>
                     </label>
                   </div>
-                  <label className="form-label">
+                  <label className="form-label" htmlFor="token-artwork">
                     Token image <span>Optional · PNG, JPG, WebP</span>
                   </label>
                   <div
@@ -355,7 +359,10 @@ function HomeContent() {
                       onClick={() => upload.current?.click()}
                     >
                       {hasImage ? (
-                        <img
+                        <Image
+                          unoptimized
+                          width={128}
+                          height={128}
                           src={form.image}
                           alt="Selected token artwork"
                           onError={() => setImageError(true)}
@@ -373,6 +380,7 @@ function HomeContent() {
                     </button>
                     <input
                       ref={upload}
+                      id="token-artwork"
                       aria-label="Upload token artwork"
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
@@ -380,7 +388,7 @@ function HomeContent() {
                       onChange={(e) => void uploadImage(e.target.files?.[0])}
                     />
                   </div>
-                  <label className="form-label">
+                  <label className="form-label" htmlFor="token-artwork">
                     Description <span>Optional</span>
                     <textarea
                       value={form.description}
@@ -468,7 +476,10 @@ function HomeContent() {
                 </div>
                 <div className={`token-mark ${hasImage ? 'has-image' : ''}`}>
                   {hasImage ? (
-                    <img
+                    <Image
+                      unoptimized
+                      width={128}
+                      height={128}
                       src={form.image}
                       alt={`${form.name || 'Token'} artwork`}
                       onError={() => setImageError(true)}

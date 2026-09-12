@@ -48,7 +48,7 @@ export function reviewSigningPayload(
     (ix) => ix.programId.equals(PUMP) || ix.programId.equals(AMM),
   );
   const buys = pump.filter(
-    (ix) => ix.data.subarray(0, 8).toString('hex') === BUY,
+    (ix) => Buffer.from(ix.data).subarray(0, 8).toString('hex') === BUY,
   );
   requirePolicy(buys.length <= 1, 'Only one buy is permitted per transaction.');
   const buy = buys[0],
@@ -59,8 +59,8 @@ export function reviewSigningPayload(
   if (buy) {
     requirePolicy(
       buy.data.length >= 24 &&
-        buy.data.readBigUInt64LE(8) > 0n &&
-        buy.data.readBigUInt64LE(16) <= maxSpend,
+        Buffer.from(buy.data).readBigUInt64LE(8) > 0n &&
+        Buffer.from(buy.data).readBigUInt64LE(16) <= maxSpend,
       'Buy exceeds the managed wallet limit.',
     );
     requirePolicy(
@@ -112,16 +112,16 @@ export function reviewSigningPayload(
       requirePolicy(
         (ix.data[0] === 2 &&
           ix.data.length === 5 &&
-          ix.data.readUInt32LE(1) <= 400000) ||
+          Buffer.from(ix.data).readUInt32LE(1) <= 400000) ||
           (ix.data[0] === 3 &&
             ix.data.length === 9 &&
-            ix.data.readBigUInt64LE(1) <= 10000n),
+            Buffer.from(ix.data).readBigUInt64LE(1) <= 10000n),
         'Unsupported or excessive compute fee.',
       );
       continue;
     }
     if (ix.programId.equals(PUMP) || ix.programId.equals(AMM)) {
-      const discriminator = ix.data.subarray(0, 8).toString('hex');
+      const discriminator = Buffer.from(ix.data).subarray(0, 8).toString('hex');
       if (discriminator === BUY) {
         requirePolicy(
           ix === buy && key(ix, amm ? 5 : 5)?.equals(ata!),
@@ -168,7 +168,7 @@ export function reviewSigningPayload(
           buy &&
             amm &&
             t.toPubkey.equals(wsol) &&
-            t.lamports === buy.data.readBigUInt64LE(16),
+            t.lamports === Buffer.from(buy.data).readBigUInt64LE(16),
           'Pump transfers may only wrap the quoted SOL amount.',
         );
       else
@@ -218,7 +218,8 @@ export function reviewSigningPayload(
         requirePolicy(
           buy &&
             ix.data.length === 10 &&
-            ix.data.readBigUInt64LE(1) === buy.data.readBigUInt64LE(8) &&
+            Buffer.from(ix.data).readBigUInt64LE(1) ===
+              Buffer.from(buy.data).readBigUInt64LE(8) &&
             key(ix, 0)?.equals(ata!) &&
             key(ix, 1)?.equals(mint!) &&
             key(ix, 2)?.equals(owner) &&
@@ -268,7 +269,7 @@ export function reviewSigningPayload(
         tx.verifySignatures(),
         'KMS returned an invalid signature.',
       );
-      return tx.serialize().toString('base64');
+      return Buffer.from(tx.serialize()).toString('base64');
     },
   };
 }

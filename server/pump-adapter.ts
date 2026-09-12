@@ -356,7 +356,7 @@ export function verifySigned(unsigned: string, signed: string) {
   const expected = Transaction.from(from64(unsigned)),
     tx = Transaction.from(from64(signed));
   assert(
-    tx.serializeMessage().equals(expected.serializeMessage()),
+    Buffer.from(tx.serializeMessage()).equals(expected.serializeMessage()),
     422,
     'Wallet changed the reviewed transaction. Prepare a fresh review.',
   );
@@ -384,7 +384,7 @@ export function base58(bytes: Uint8Array) {
 }
 export async function receipt(
   signature: string,
-  details: Record<string, any>,
+  details: Record<string, string>,
   unsigned: string,
 ) {
   await verifyNetwork();
@@ -427,7 +427,7 @@ export async function receipt(
   if (!tx.meta.err && details.kind === 'claim') {
     const c = connection();
     const programs = [getPumpProgram(c), getPumpAmmProgram(c)];
-    const events: any[] = [];
+    const events: { name: string; data: Record<string, unknown> }[] = [];
     for (const group of tx.meta.innerInstructions || [])
       for (const instruction of group.instructions) {
         const program = programs.find((p) =>

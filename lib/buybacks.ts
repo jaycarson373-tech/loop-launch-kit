@@ -1,3 +1,4 @@
+import { objectValue, finiteNumber, unsignedAmount } from './json.ts';
 /** Loop policy engine. Pure accounting; this module never signs or broadcasts. */
 export const LAMPORTS = 1_000_000_000n;
 export const POLICY = Object.freeze({
@@ -288,7 +289,7 @@ export class BuybackEngine {
   static restore(value: unknown) {
     if (!value || typeof value !== 'object')
       throw new Error('Invalid engine checkpoint');
-    const v = value as Record<string, any>;
+    const v = { ...objectValue(value) };
     for (const key of [
       'operationsDebt',
       'treasuryCredited',
@@ -312,25 +313,22 @@ export class BuybackEngine {
       'burned',
       'cycleLot',
     ] as const) {
-      if (typeof v[key] !== 'string' || !/^\d+$/.test(v[key]))
-        throw new Error('Invalid checkpoint amount');
-      e[key] = BigInt(v[key]);
+      e[key] = unsignedAmount(v[key]);
     }
     if (
       typeof v.armed !== 'boolean' ||
       typeof v.halted !== 'boolean' ||
-      !['curve', 'pumpswap'].includes(v.venue)
+      (v.venue !== 'curve' && v.venue !== 'pumpswap')
     )
       throw new Error('Invalid checkpoint state');
     e.armed = v.armed;
     e.halted = v.halted;
     e.venue = v.venue;
     for (const key of ['lastTreasuryAt', 'lastPriceAt'] as const) {
-      if (v[key] !== null && !Number.isFinite(v[key]))
-        throw new Error('Invalid checkpoint time');
-      e[key] = v[key] ?? -Infinity;
+      e[key] = v[key] === null ? -Infinity : finiteNumber(v[key]);
     }
     if (
+      typeof v.lastPrice !== 'number' ||
       !Number.isFinite(v.lastPrice) ||
       v.lastPrice < 0 ||
       !Array.isArray(v.observations) ||
@@ -339,10 +337,12 @@ export class BuybackEngine {
     )
       throw new Error('Invalid checkpoint records');
     e.lastPrice = v.lastPrice;
-    e.observations = v.observations.map((p: any) => {
-      if (!Number.isFinite(p.price) || p.price <= 0 || !Number.isFinite(p.at))
-        throw new Error('Invalid price observation');
-      return { price: p.price, at: p.at };
+    e.observations = v.observations.map((value: unknown) => {
+      const p = objectValue(value);
+      const price = finiteNumber(p.price),
+        at = finiteNumber(p.at);
+      if (price <= 0) throw new Error('Invalid price observation');
+      return { price, at };
     });
     e.receipts = new Set(
       v.receipts.map((r: unknown) => {
@@ -351,26 +351,36 @@ export class BuybackEngine {
       }),
     );
     const ids = new Set<string>();
-    e.lots = v.lots.map((l: any) => {
+    e.lots = v.lots.map((value: unknown) => {
+      const l = objectValue(value);
       if (
         typeof l.id !== 'string' ||
         ids.has(l.id) ||
-        !['dip', 'treasury'].includes(l.stream) ||
-        !['reserved', 'confirmed', 'failed', 'uncertain'].includes(l.status) ||
+        (l.stream !== 'dip' && l.stream !== 'treasury') ||
+        (l.status !== 'reserved' &&
+          l.status !== 'confirmed' &&
+          l.status !== 'failed' &&
+          l.status !== 'uncertain') ||
         !Number.isFinite(l.sendAfter)
       )
         throw new Error('Invalid checkpoint lot');
       ids.add(l.id);
-      for (const key of ['purchase', 'costCeiling', 'reserved'])
-        if (typeof l[key] !== 'string' || !/^\d+$/.test(l[key]))
-          throw new Error('Invalid lot amount');
-      if (BigInt(l.reserved) !== BigInt(l.purchase) + BigInt(l.costCeiling))
+      const purchase = unsignedAmount(l.purchase),
+        costCeiling = unsignedAmount(l.costCeiling),
+        reserved = unsignedAmount(l.reserved);
+      if (reserved !== purchase + costCeiling)
         throw new Error('Inconsistent reservation');
+      if (l.signature !== undefined && typeof l.signature !== 'string')
+        throw new Error('Invalid signature');
       return {
-        ...l,
-        purchase: BigInt(l.purchase),
-        costCeiling: BigInt(l.costCeiling),
-        reserved: BigInt(l.reserved),
+        id: l.id,
+        stream: l.stream,
+        status: l.status,
+        sendAfter: finiteNumber(l.sendAfter),
+        ...(l.signature === undefined ? {} : { signature: l.signature }),
+        purchase,
+        costCeiling,
+        reserved,
       };
     });
     return e;
@@ -384,28 +394,28 @@ export class BuybackEngine {
     l.status = 'failed';
   }
   snapshot() {
-    return JSON.parse(
-      JSON.stringify(
-        {
-          held: this.held,
-          released: this.released,
-          creator: this.creator,
-          platform: this.platform,
-          operationsDebt: this.operationsDebt,
-          treasuryReady: this.treasuryReady,
-          treasuryCredited: this.treasuryCredited,
-          treasurySpent: this.treasurySpent,
-          netPlatformRevenue: this.netPlatformRevenue,
-          spent: this.spent,
-          burned: this.burned,
-          armed: this.armed,
-          halted: this.halted,
-          venue: this.venue,
-          lots: this.lots,
-        },
-        (_, v) => (typeof v === 'bigint' ? v.toString() : v),
-      ),
-    );
+    return {
+      held: this.held.toString(),
+      released: this.released.toString(),
+      creator: this.creator.toString(),
+      platform: this.platform.toString(),
+      operationsDebt: this.operationsDebt.toString(),
+      treasuryReady: this.treasuryReady.toString(),
+      treasuryCredited: this.treasuryCredited.toString(),
+      treasurySpent: this.treasurySpent.toString(),
+      netPlatformRevenue: this.netPlatformRevenue.toString(),
+      spent: this.spent.toString(),
+      burned: this.burned.toString(),
+      armed: this.armed,
+      halted: this.halted,
+      venue: this.venue,
+      lots: this.lots.map((l) => ({
+        ...l,
+        purchase: l.purchase.toString(),
+        costCeiling: l.costCeiling.toString(),
+        reserved: l.reserved.toString(),
+      })),
+    };
   }
 }
 export type SimulationInput = { revenue: number; drop: number; main: boolean };

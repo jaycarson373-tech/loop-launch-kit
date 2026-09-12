@@ -1,4 +1,5 @@
-// Read-only transaction simulation on a local devnet fork. No signing or broadcasting.
+/* oxlint-disable typescript/no-require-imports -- Pump SDK CommonJS is an isolated legacy adapter; its Node ESM Anchor entrypoint is incompatible. */
+// Read-only transaction simulation on a local Solana fork. No signing or broadcasting.
 // Post-simulation account state is applied using local Surfpool cheatcodes only.
 const {
   PUMP_SDK,
@@ -70,6 +71,14 @@ const publicKey = () =>
       verifySignatures: false,
     });
     assert.ok(wire.length <= 1232, `${label} exceeds packet size`);
+    const signerReviewed = /buy plus|fee collection|Creator payout/.test(label);
+    if (signerReviewed) {
+      const { reviewSigningPayload } =
+        await import('../../keeper/solana-boundary.ts');
+      reviewSigningPayload(wire.toString('base64'), payer.toBase58(), [
+        user.toBase58(),
+      ]);
+    }
     const addresses = [
       ...new Set([
         payer.toBase58(),
@@ -91,6 +100,7 @@ const publicKey = () =>
         {
           flow: label,
           packetBytes: wire.length,
+          signerReviewed,
           units: sim.value.unitsConsumed,
           error: sim.value.err,
           logs: sim.value.err ? sim.value.logs?.slice(-10) : undefined,

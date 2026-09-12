@@ -1,0 +1,58 @@
+{
+  "checkedAt": "2026-09-12T21:53:48.091582+00:00",
+  "runtime": "Surfpool 1.5.0",
+  "source": "local fork of mainnet programs",
+  "signaturesVerified": false,
+  "broadcast": false,
+  "flows": [
+    {
+      "flow": "Pump create_v2 plus creator funding",
+      "packetBytes": 908,
+      "signerReviewed": false,
+      "units": 97465,
+      "error": null
+    },
+    {
+      "flow": "Bonding curve buy plus exact atomic burn",
+      "packetBytes": 904,
+      "signerReviewed": true,
+      "units": 90712,
+      "error": null
+    },
+    {
+      "flow": "Creator fee collection from both programs",
+      "packetBytes": 620,
+      "signerReviewed": true,
+      "units": 58752,
+      "error": null
+    },
+    {
+      "flow": "Creator payout",
+      "packetBytes": 255,
+      "signerReviewed": true,
+      "units": 300,
+      "error": null
+    },
+    {
+      "flow": "Complete bonding curve for migration fixture",
+      "packetBytes": 806,
+      "signerReviewed": false,
+      "units": 95082,
+      "error": null
+    },
+    {
+      "flow": "Curve migration to canonical PumpSwap pool",
+      "packetBytes": 1044,
+      "signerReviewed": false,
+      "units": 308579,
+      "error": null
+    },
+    {
+      "flow": "PumpSwap buy plus atomic burn",
+      "packetBytes": 1181,
+      "signerReviewed": true,
+      "units": 123303,
+      "error": null
+    }
+  ]
+}
