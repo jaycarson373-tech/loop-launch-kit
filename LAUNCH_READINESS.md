@@ -4,7 +4,7 @@
 
 ## Verified in this release
 
-- 43 passing tests: buyback accounting, transaction recovery and replay protection, malformed checkpoints, signer restrictions, signer HTTP authentication/body limits, native-free integer codecs and readiness gates.
+- 44 passing tests: buyback accounting, transaction recovery and replay protection, malformed checkpoints, signer restrictions, signer HTTP authentication/body limits, native-free integer codecs and readiness gates.
 - Lint, type checking and production build pass. GitHub Actions now also exercises local authenticated HTTP flows against D1 and R2.
 - Dependency audit: zero critical, zero high, two moderate findings confined to an unused legacy server dependency. See `SECURITY_REVIEW.md` for scope and evidence.
 - A local fork of current mainnet programs passes every protocol stage below. Actual buy, fee-claim and payout instructions also pass the managed signer's transaction policy.

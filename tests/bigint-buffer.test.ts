@@ -1,6 +1,24 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import codec from '../vendor/bigint-buffer/index.cjs';
+import codec from 'bigint-buffer';
+import { createRequire } from 'node:module';
+import { realpathSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const resolve = createRequire(import.meta.url).resolve;
+void test('SPL layouts resolve the audited workspace integer implementation', () => {
+  const dependency = resolve('bigint-buffer', {
+    paths: [dirname(resolve('@solana/buffer-layout-utils'))],
+  });
+  assert.equal(
+    realpathSync(dependency),
+    realpathSync(
+      fileURLToPath(
+        new URL('../vendor/bigint-buffer/index.cjs', import.meta.url),
+      ),
+    ),
+  );
+});
 void test('native-free integer codecs round trip unsigned 64/128/256-bit values', () => {
   for (const width of [8, 16, 32]) {
     for (const value of [0n, 1n, 123456789n, (1n << BigInt(width * 8)) - 1n]) {

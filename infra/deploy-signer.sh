@@ -5,7 +5,7 @@ set -euo pipefail
 project=${1:?Usage: deploy-signer.sh PROJECT_ID REGION}
 region=${2:?Usage: deploy-signer.sh PROJECT_ID REGION}
 [[ "$project" =~ ^[a-z][a-z0-9-]{4,61}[a-z0-9]$ ]] || { echo 'Invalid project ID' >&2; exit 1; }
-[[ "$region" =~ ^[a-z]+-[a-z]+[0-9]$ ]] || { echo 'Invalid region' >&2; exit 1; }
+[[ "$region" =~ ^[a-z]+-[a-z]+[0-9]+$ ]] || { echo 'Invalid region' >&2; exit 1; }
 command -v gcloud >/dev/null || { echo 'Install and sign in to Google Cloud CLI first.' >&2; exit 1; }
 cd "$(dirname "$0")/.."
 [[ -z "$(git status --porcelain)" ]] || { echo 'Commit and verify the source before deployment.' >&2; exit 1; }
