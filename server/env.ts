@@ -1,8 +1,13 @@
-import { env } from 'cloudflare:workers';
+import { platformRuntime } from '@/server/platform';
+import type { Database, ArtworkStore } from './contracts';
 import { executionConfig } from '../lib/runtime-config';
 export type LoopEnv = {
-  DB: D1Database;
-  ASSETS: R2Bucket;
+  DB: Database;
+  ASSETS: ArtworkStore;
+  AUTH_MODE: 'sites' | 'password';
+  LOOP_ADMIN_PASSWORD?: string;
+  LOOP_SESSION_SECRET?: string;
+  TURSO_DATABASE_URL?: string;
   LOOP_RPC_URL?: string;
   LOOP_CLUSTER?: string;
   LOOP_TREASURY_ADDRESS?: string;
@@ -16,7 +21,7 @@ export type LoopEnv = {
   LOOP_EXECUTION_ENABLED?: string;
 };
 export function runtime() {
-  return env as unknown as LoopEnv;
+  return platformRuntime();
 }
 export function config() {
   return executionConfig(runtime());

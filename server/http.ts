@@ -12,8 +12,28 @@ export function assert(
 ): asserts condition {
   if (!condition) throw new HttpError(status, message);
 }
-export function identity(request: Request) {
-  const id = request.headers.get('oai-authenticated-user-id');
+export async function signedInIdentity(request: Request) {
+  const env = runtime();
+  if (env.AUTH_MODE === 'sites')
+    return request.headers.get('oai-authenticated-user-id');
+  const session = request.headers
+    .get('cookie')
+    ?.split(';')
+    .map((v) => v.trim())
+    .find((v) => v.startsWith(`${SESSION_COOKIE}=`))
+    ?.slice(SESSION_COOKIE.length + 1);
+  return session &&
+    env.LOOP_SESSION_SECRET &&
+    (await verifySession(
+      session,
+      env.LOOP_SESSION_SECRET,
+      new URL(request.url).origin,
+    ))
+    ? 'loop-operator'
+    : null;
+}
+export async function identity(request: Request) {
+  const id = await signedInIdentity(request);
   assert(id, 401, 'Sign in to access your Loop workspace.');
   return id;
 }
@@ -78,3 +98,5 @@ export async function api(action: () => Promise<Response>) {
     );
   }
 }
+import { runtime } from './env';
+import { SESSION_COOKIE, verifySession } from '../lib/session';

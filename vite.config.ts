@@ -51,6 +51,12 @@ export default defineConfig(async () => {
     resolve: {
       alias: [
         {
+          find: '@/server/platform',
+          replacement: fileURLToPath(
+            new URL('./server/platform-sites.ts', import.meta.url),
+          ),
+        },
+        {
           find: /^(rpc-websockets|@solana\/(?:codecs(?:-[a-z-]+)?|options|errors))$/,
           replacement: '$1',
           customResolver(source: string, importer?: string) {

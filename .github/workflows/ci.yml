@@ -16,6 +16,9 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm test
+      - run: npm run test:vercel
       - run: npx tsc --noEmit
       - run: npm run build
+      - run: bash scripts/verify-vercel.sh
+      - run: npm run build:sites
       - run: bash scripts/verify-api.sh

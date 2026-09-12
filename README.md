@@ -1,19 +1,21 @@
 # Loop Finance launch kit
 
+**Deploy on Vercel:** import [loop-launch-kit](https://github.com/jaycarson373-tech/loop-launch-kit) as **Next.js**, with the repository root and Node 24. The standard `build`, `start`, and `dev` commands now target Next.js/Vercel. See [VERCEL.md](VERCEL.md) for GitHub access, database and login setup. Sites uses the explicit `*:sites` commands.
+
 Independent Solana launchpad inspired by Revolve's public product. The app includes server-persisted launch plans, artwork storage, Wallet Standard connection, Pump launch preparation and signing, a durable buyback ledger, transaction reconciliation, and managed-signer/keeper services.
 
 **Live activation pending operator setup and funded acceptance.** See [the dated readiness report](LAUNCH_READINESS.md).
 
 **Deployment status:** the private website works. Financial execution is configuration-gated. A funded token launch, managed KMS signer, continuously running keeper, and live buyback acceptance run have not been deployed or performed. Do not equate passing local tests with live trading readiness.
 
-## Development
+## Sites development
 
 Requires Node 24 and npm.
 
 ```sh
 npm ci
 npx wrangler d1 migrations apply DB --local --config wrangler.local.json
-npm run dev -- --port 3001
+npm run dev:sites -- --port 3001
 ```
 
 Open `/signin-with-chatgpt?return_to=/` once for the local Sites test identity. Production uses the Sites dispatcher identity and its private access policy. Production routes must never be exposed directly on a server that trusts client-supplied identity headers.
@@ -22,7 +24,7 @@ Open `/signin-with-chatgpt?return_to=/` once for the local Sites test identity. 
 npm test
 npx tsc --noEmit
 npm run lint
-npm run build
+npm run build:sites
 # With the dev server running and live credentials absent:
 npm run test:api
 # Or start/stop the local test server automatically:

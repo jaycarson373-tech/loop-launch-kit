@@ -42,6 +42,8 @@ import {
 } from 'lucide-react';
 export type LiveConfig = {
   signedIn: boolean;
+  signInUrl: string;
+  workspaceConfigured: boolean;
   cluster: 'devnet' | 'mainnet-beta';
   chain: 'solana:devnet' | 'solana:mainnet';
   treasury: string | null;
@@ -162,9 +164,9 @@ export function LoopProvider({ children }: { children: ReactNode }) {
           <div className="inline-note">
             <Info />
             <p>
-              {/* Full navigation is required for the Sites authentication redirect. */}
+              {/* Full navigation supports both hosting providers' sign-in pages. */}
               {/* oxlint-disable-next-line next/no-html-link-for-pages */}
-              <a href="/signin-with-chatgpt?return_to=/" target="_top">
+              <a href={config.signInUrl} target="_top">
                 Sign in to your workspace
               </a>{' '}
               to save plans and view launch records.

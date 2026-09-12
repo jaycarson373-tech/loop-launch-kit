@@ -5,9 +5,16 @@ assert.ok(
   ['localhost', '127.0.0.1'].includes(new URL(origin).hostname),
   'Integration checks must run locally.',
 );
-const login = await fetch(`${origin}/signin-with-chatgpt?return_to=/`, {
-  redirect: 'manual',
-});
+const login = process.env.LOOP_TEST_PASSWORD
+  ? await fetch(`${origin}/api/loop/session`, {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: process.env.LOOP_TEST_PASSWORD }),
+    })
+  : await fetch(`${origin}/signin-with-chatgpt?return_to=/`, {
+      redirect: 'manual',
+    });
+assert.ok(login.status < 400, await login.clone().text());
 const cookie = login.headers
   .getSetCookie()
   .map((v) => v.split(';')[0])

@@ -1,0 +1,5 @@
+CREATE TABLE artwork_blobs (
+  id TEXT PRIMARY KEY NOT NULL,
+  data BLOB NOT NULL,
+  mime TEXT NOT NULL
+);

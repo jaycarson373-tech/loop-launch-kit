@@ -3,10 +3,12 @@ import {
   assert,
   HttpError,
   identity,
+  signedInIdentity,
   json,
   readJson,
   sameOrigin,
 } from './http';
+import { authStatus, sessionRoute } from './auth';
 import { runtime, config } from './env';
 import { serviceReadiness } from './readiness';
 import {
@@ -75,8 +77,11 @@ export async function handle(request: Request) {
     if (method === 'GET' && parts[0] === 'config')
       return json({
         ...config(),
-        signedIn: !!request.headers.get('oai-authenticated-user-id'),
+        signedIn: !!(await signedInIdentity(request)),
+        ...authStatus(),
       });
+    if (parts[0] === 'session' && parts.length === 1)
+      return sessionRoute(request);
     if (method === 'POST' && parts[0] === 'keeper') {
       const expected = runtime().LOOP_KEEPER_TOKEN;
       assert(
@@ -113,7 +118,7 @@ export async function handle(request: Request) {
       }
       return json({ results });
     }
-    const owner = identity(request);
+    const owner = await identity(request);
     if (method === 'GET' && parts[0] === 'readiness')
       return json(await serviceReadiness());
     if (method !== 'GET') sameOrigin(request);
