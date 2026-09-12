@@ -8,6 +8,7 @@ import {
   sameOrigin,
 } from './http';
 import { runtime, config } from './env';
+import { serviceReadiness } from './readiness';
 import {
   db,
   launch,
@@ -23,12 +24,18 @@ import { provisionCreator } from './signer';
 import { uploadPumpMetadata } from './metadata';
 import { prepareCreate, assertLifetime } from './pump-adapter';
 import { submit, reconcileOwned, processLaunch } from './execution';
-function requireLive() {
+async function requireLive() {
   const c = config();
   assert(
     c.launchEnabled,
     503,
     'Live launches need the RPC, treasury, and managed signing service configured.',
+  );
+  const readiness = await serviceReadiness();
+  assert(
+    readiness.servicesReady,
+    503,
+    'Launch services are not healthy. Run readiness checks before launching.',
   );
   return c;
 }
@@ -79,7 +86,13 @@ export async function handle(request: Request) {
         'Keeper authentication required.',
       );
       const c = config();
-      assert(c.automationEnabled, 503, 'Keeper is not configured.');
+      await db()
+        .prepare(
+          "INSERT INTO settings (key,value) VALUES ('keeper_heartbeat',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        )
+        .bind(String(Date.now()))
+        .run();
+      if (!c.automationEnabled) return json({ status: 'paused', results: [] });
       const rows = (
         await db()
           .prepare(
@@ -101,6 +114,8 @@ export async function handle(request: Request) {
       return json({ results });
     }
     const owner = identity(request);
+    if (method === 'GET' && parts[0] === 'readiness')
+      return json(await serviceReadiness());
     if (method !== 'GET') sameOrigin(request);
     if (method === 'GET' && parts[0] === 'launches') {
       if (parts[1]) {
@@ -306,7 +321,7 @@ export async function handle(request: Request) {
       parts[0] === 'launches' &&
       parts[2] === 'prepare'
     ) {
-      requireLive();
+      await requireLive();
       const input = await readJson(request);
       assert(
         validAddress(input.mint),

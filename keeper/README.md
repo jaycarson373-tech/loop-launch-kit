@@ -13,3 +13,11 @@ The separate runner calls the authenticated Site keeper endpoint serially. Deplo
 Build: `docker build -f keeper/Dockerfile -t loop-signer .`.
 Run signer: `npm run signer`.
 Run poller: `npm run keeper`.
+
+## Activation and monitoring
+
+`POST /v1/health` requires the signer bearer token and checks key-ring access, reads the managed treasury public key, and reports policy limits. It never signs. This proves read access only; a controlled acceptance run must also exercise KMS signing permissions.
+
+Leave the Site's `LOOP_EXECUTION_ENABLED=false` while configuring services. The authenticated keeper records a heartbeat even while execution is paused. A heartbeat older than 90 seconds prevents preparation of new launches. Keep signer and keeper bearer tokens distinct and at least 32 characters. The signer defaults must accommodate the engine's 1 SOL buy and 100 SOL payout limits.
+
+Set the execution switch only after the deployment connectivity, real wallet signing, fee reconciliation, atomic burns and restart recovery acceptance cases pass on the selected test environment. Mainnet additionally requires `LOOP_ALLOW_MAINNET=true`. Pausing blocks new signing/submission through the app; it does not revoke a previously signed transaction or undo a broadcast. Reconcile outstanding transactions before restarting.

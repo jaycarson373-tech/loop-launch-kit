@@ -12,6 +12,8 @@ export const POLICY = Object.freeze({
   maxPriceAgeMs: 30_000,
   lotBps: 250,
   minLot: 50_000_000n,
+  maxLot: 1_000_000_000n,
+  maxPayout: 100_000_000_000n,
   batchSize: 4,
   spacingMs: 2000,
   treasuryIntervalMs: 60_000,
@@ -186,7 +188,10 @@ export class BuybackEngine {
     const batch: Lot[] = [];
     for (let i = 0; i < (stream === 'dip' ? POLICY.batchSize : 1); i++) {
       if (available < POLICY.minLot + costCeiling) break;
-      const purchase = min(fixedLot, available - costCeiling);
+      const purchase = min(
+        POLICY.maxLot,
+        min(fixedLot, available - costCeiling),
+      );
       if (purchase < POLICY.minLot) break;
       const reserved = purchase + costCeiling;
       const lot: Lot = {

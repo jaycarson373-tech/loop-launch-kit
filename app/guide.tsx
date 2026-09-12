@@ -1,3 +1,4 @@
+import { LaunchReadiness } from './live';
 import { ArrowUpRight } from 'lucide-react';
 export function Guide() {
   return (
@@ -10,6 +11,7 @@ export function Guide() {
         </div>
         <span className="status-pill">Policy v0.2</span>
       </div>
+      <LaunchReadiness />
       <div className="guide-layout">
         <nav aria-label="Guide sections">
           {[
@@ -91,10 +93,10 @@ export function Guide() {
             <h3>Small lots. Accounted-for spending.</h3>
             <p>
               A cycle sizes each purchase at 2.5% of its initial released
-              budget, with a 0.05 SOL minimum. A batch has at most four lots
-              with two seconds of planned spacing. Purchase budgets and
-              transaction costs are reserved together before execution. Tiny
-              remaining balances wait.
+              budget, with a 0.05 SOL minimum and a 1 SOL maximum. A batch has
+              at most four lots with two seconds of planned spacing. Purchase
+              budgets and transaction costs are reserved together before
+              execution. Tiny remaining balances wait.
             </p>
             <p>
               The transaction adapter purchases an exact token amount and burns

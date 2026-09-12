@@ -1,4 +1,5 @@
 import { config } from './env';
+import { signedWriteStatements } from '../lib/transaction-ledger';
 import { assert, HttpError } from './http';
 import {
   db,
@@ -51,36 +52,45 @@ export async function submit(
     );
     return { signature: j.signature, status: j.status };
   }
+  assert(
+    config().launchEnabled,
+    503,
+    'Execution is paused. Signed submissions are disabled.',
+  );
   assert(j.status === 'prepared', 409, 'This transaction cannot be submitted.');
   await assertLifetime(j.block_height);
   const verified = verifySigned(j.unsigned, signed);
   const details = JSON.parse(j.details);
-  if (details.lotId) {
-    engine.attachSignature(details.lotId, verified.signature);
-    await saveEngine(row, engine);
-  }
-  const now = Date.now();
-  const results = await db().batch([
-    db()
-      .prepare(
-        "UPDATE transactions SET signed=?,signature=?,status='signed',updated_at=? WHERE id=? AND signature IS NULL AND EXISTS(SELECT 1 FROM launches WHERE id=? AND lock_token=? AND lock_until>?)",
-      )
-      .bind(signed, verified.signature, now, j.id, row.id, row.lock_token, now),
-    db()
-      .prepare(
-        'UPDATE launches SET status=?,updated_at=? WHERE id=? AND lock_token=? AND EXISTS(SELECT 1 FROM transactions WHERE id=? AND signature=?)',
-      )
-      .bind(
-        j.kind === 'create' ? 'submitted' : row.status,
-        now,
-        row.id,
-        row.lock_token,
-        j.id,
-        verified.signature,
-      ),
-  ]);
-  assert(results[0].meta.changes, 409, 'Transaction reservation changed.');
-  if (j.kind === 'create') row.status = 'submitted';
+  if (details.lotId) engine.attachSignature(details.lotId, verified.signature);
+  const now = Date.now(),
+    status = j.kind === 'create' ? 'submitted' : row.status;
+  const checkpoint = JSON.stringify(engine.checkpoint());
+  const writes = signedWriteStatements({
+    launchId: row.id,
+    jobId: j.id,
+    revision: row.revision,
+    lockToken: row.lock_token,
+    now,
+    engine: checkpoint,
+    status,
+    signed,
+    signature: verified.signature,
+  });
+  const results = await db().batch(
+    writes.map((w) =>
+      db()
+        .prepare(w.sql)
+        .bind(...w.args),
+    ),
+  );
+  assert(
+    results.every((r) => r.meta.changes === 1),
+    409,
+    'Transaction reservation changed. No transaction was sent.',
+  );
+  row.status = status;
+  row.revision++;
+  row.engine = checkpoint;
   j.signature = verified.signature;
   j.signed = signed;
   try {
@@ -345,7 +355,9 @@ export async function processLaunch(id: string) {
         const p = await prepareTransfer(
           row.creator!,
           destination,
-          available - COST_CEILING,
+          available - COST_CEILING > POLICY.maxPayout
+            ? POLICY.maxPayout
+            : available - COST_CEILING,
           kind,
         );
         return executePrepared(row, e, kind, p, {

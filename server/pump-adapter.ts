@@ -389,7 +389,7 @@ export async function receipt(
 ) {
   await verifyNetwork();
   const tx = await connection().getTransaction(signature, {
-    commitment: 'confirmed',
+    commitment: 'finalized',
     maxSupportedTransactionVersion: 0,
   });
   if (!tx) return null;
@@ -511,4 +511,17 @@ export function decode58(value: string) {
     Buffer.alloc(zeros),
     n ? Buffer.from(h, 'hex') : Buffer.alloc(0),
   ]);
+}
+
+export async function verifyPrograms() {
+  await verifyNetwork();
+  const programs = await connection().getMultipleAccountsInfo([
+    PUMP_PROGRAM_ID,
+    PUMP_AMM_PROGRAM_ID,
+  ]);
+  assert(
+    programs.every((p) => p?.executable),
+    503,
+    'Pump programs are unavailable on this network.',
+  );
 }

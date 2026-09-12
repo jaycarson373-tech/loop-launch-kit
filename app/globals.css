@@ -1796,3 +1796,14 @@ footer p {
 .live-launch-flow .review-rows {
   margin: 8px 0;
 }
+.launch-readiness {
+  margin-bottom: 28px;
+  padding: 24px;
+}
+.launch-readiness .transaction-list > div {
+  flex-wrap: wrap;
+}
+.launch-readiness .transaction-list p {
+  flex-basis: 100%;
+  margin: 0;
+}

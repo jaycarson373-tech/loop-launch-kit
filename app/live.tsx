@@ -680,3 +680,69 @@ export function LiveHistory() {
     </section>
   );
 }
+
+export function LaunchReadiness() {
+  const [result, setResult] = useState<{
+      servicesReady: boolean;
+      executionEnabled: boolean;
+      acceptance: string;
+      checks: { id: string; label: string; ok: boolean; detail: string }[];
+    } | null>(null),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState('');
+  return (
+    <section className="panel launch-readiness">
+      <div className="panel-title">
+        <div>
+          <span className="eyebrow">LIVE SERVICE CHECKS</span>
+          <h3>Launch readiness</h3>
+        </div>
+        <button
+          className="secondary"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setError('');
+            try {
+              setResult(await requestApi('readiness'));
+            } catch (e) {
+              setError((e as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <RefreshCw />
+          {busy ? 'Checking services…' : 'Check readiness'}
+        </button>
+      </div>
+      <p className="body-copy">
+        Verify storage, network, managed treasury and the keeper before enabling
+        execution.
+      </p>
+      {error && (
+        <p role="alert" className="error">
+          {error}
+        </p>
+      )}
+      {result && (
+        <>
+          <div className="transaction-list">
+            {result.checks.map((check) => (
+              <div key={check.id}>
+                <span>{check.label}</span>
+                <strong>{check.ok ? 'Verified' : 'Needs attention'}</strong>
+                <p className="footnote">{check.detail}</p>
+              </div>
+            ))}
+          </div>
+          <p className="notice">
+            Execution is{' '}
+            {result.executionEnabled ? 'enabled by the operator' : 'paused'}.{' '}
+            {result.acceptance}
+          </p>
+        </>
+      )}
+    </section>
+  );
+}

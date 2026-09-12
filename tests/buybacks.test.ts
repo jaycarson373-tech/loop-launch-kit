@@ -4,6 +4,7 @@ import {
   allocateFees,
   BuybackEngine,
   LAMPORTS,
+  POLICY,
   parseSol,
   simulateBuybacks,
 } from '../lib/buybacks.ts';
@@ -195,4 +196,15 @@ test('operating subsidy is repaid before net platform revenue accrues', () => {
   assert.equal(e.creator, 100n);
   const restored = BuybackEngine.restore(e.checkpoint());
   assert.equal(restored.platform, 100n);
+});
+
+void test('large balances are split into lots within the managed signer limit', () => {
+  const e = new BuybackEngine();
+  e.creditCreatorFees('large', 10000n * LAMPORTS);
+  e.observe(1, 1000);
+  e.observe(0.4, 2000);
+  const lots = e.reserveBatch(2000, 10000n);
+  assert.equal(lots.length, 4);
+  assert.ok(lots.every((l) => l.purchase <= POLICY.maxLot));
+  assert.ok(e.released > 0n);
 });

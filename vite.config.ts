@@ -3,6 +3,8 @@ import tailwindcss from '@tailwindcss/postcss';
 import vinext from 'vinext';
 import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import hostingConfig from './.openai/hosting.json' with { type: 'json' };
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
@@ -48,6 +50,18 @@ export default defineConfig(async () => {
   return {
     resolve: {
       alias: [
+        {
+          find: /^(rpc-websockets|@solana\/(?:codecs(?:-[a-z-]+)?|options|errors))$/,
+          replacement: '$1',
+          customResolver(source: string, importer?: string) {
+            // Vinext removes the browser condition from RSC. Legacy packages
+            // expose browser/node only; preserve the importer's codec version.
+            const entry = createRequire(
+              importer?.split('?')[0] || import.meta.url,
+            ).resolve(source);
+            return join(dirname(entry), 'index.browser.mjs');
+          },
+        },
         {
           find: /^@solana\/kit-plugin-wallet$/,
           replacement: fileURLToPath(

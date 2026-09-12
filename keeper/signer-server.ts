@@ -100,6 +100,23 @@ async function sign(input: {
   if (!signature) throw new Error('Signature missing.');
   return { signedTransaction: payload.attach(signature) };
 }
+async function health() {
+  await kms.getKeyRing({ name: required('LOOP_KMS_KEY_RING') });
+  const version = required('LOOP_TREASURY_KMS_KEY_VERSION');
+  const treasury = await publicKey(version);
+  if (treasury !== required('LOOP_TREASURY_ADDRESS'))
+    throw new Error(
+      'Treasury key does not match its configured public address.',
+    );
+  return {
+    ok: true,
+    treasury,
+    policyVersion: 1,
+    maxBuyLamports: process.env.LOOP_MAX_BUY_LAMPORTS || '1000000000',
+    maxTransferLamports:
+      process.env.LOOP_MAX_TRANSFER_LAMPORTS || '100000000000',
+  };
+}
 export function startSigner() {
   const secret = required('LOOP_SIGNER_TOKEN');
   if (secret.length < 32)
@@ -125,13 +142,15 @@ export function startSigner() {
       if (req.method !== 'POST') throw new Error('POST required.');
       const input = JSON.parse(Buffer.concat(chunks).toString());
       const result =
-        req.url === '/v1/wallets'
-          ? await provision(input.launchId, input.payout)
-          : req.url === '/v1/sign'
-            ? await sign(input)
-            : (() => {
-                throw new Error('Unknown route');
-              })();
+        req.url === '/v1/health'
+          ? await health()
+          : req.url === '/v1/wallets'
+            ? await provision(input.launchId, input.payout)
+            : req.url === '/v1/sign'
+              ? await sign(input)
+              : (() => {
+                  throw new Error('Unknown route');
+                })();
       res.writeHead(200).end(JSON.stringify(result));
     } catch (error) {
       console.error(

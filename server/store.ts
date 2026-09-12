@@ -74,9 +74,9 @@ export async function withLaunchLock<T>(
   } finally {
     await db()
       .prepare(
-        'UPDATE launches SET lock_token=NULL,lock_until=0 WHERE id=? AND lock_token=?',
+        'UPDATE launches SET lock_token=NULL,lock_until=0,updated_at=? WHERE id=? AND lock_token=?',
       )
-      .bind(id, token)
+      .bind(Date.now(), id, token)
       .run();
   }
 }

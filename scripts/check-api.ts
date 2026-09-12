@@ -53,6 +53,21 @@ assert.equal(
   false,
   'Run with live credentials absent.',
 );
+const readiness = await api('readiness');
+assert.equal(readiness.status, 200);
+assert.equal(readiness.data.servicesReady, false);
+assert.equal(readiness.data.executionEnabled, false);
+for (const id of ['database', 'artwork'])
+  assert.equal(
+    readiness.data.checks.find((c: { id: string }) => c.id === id)?.ok,
+    true,
+  );
+assert.equal(
+  (await api('readiness', undefined, { anonymous: true })).status,
+  401,
+);
+for (const body of [null, [], 'invalid'])
+  assert.equal((await api('launches', body)).status, 400);
 const plan = {
   name: 'Loop integration check',
   symbol: 'CHECK',
@@ -129,5 +144,5 @@ assert.equal(
 for (const path of ['history', 'explore', 'treasury'])
   assert.equal((await api(path)).status, 200);
 console.log(
-  'Passed 18 local API checks: authentication, origins, validation, persistence, image storage, execution guards and dashboards.',
+  'Passed local API checks, including readiness and malformed JSON bodies: authentication, origins, validation, persistence, image storage, execution guards and dashboards.',
 );
