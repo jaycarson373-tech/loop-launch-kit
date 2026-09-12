@@ -2,10 +2,12 @@
 
 **The release candidate is verified locally; live activation is still blocked.** The fresh private repository is [loop-launch-kit](https://github.com/jaycarson373-tech/loop-launch-kit). The website remains private with financial execution paused.
 
+**Vercel import support:** the repository now includes a native Next.js build, Vercel configuration, Turso persistence and a private operator login. The clean Linux build and production-server checks pass without live Solana credentials. See [VERCEL.md](VERCEL.md). A Vercel deployment and hosted Turso credentials have not been provisioned in this session; the operator must connect the private repository and add the documented settings. Existing Sites data is not automatically migrated.
+
 ## Verified in this release
 
-- 44 passing tests: buyback accounting, transaction recovery and replay protection, malformed checkpoints, signer restrictions, signer HTTP authentication/body limits, native-free integer codecs and readiness gates.
-- Lint, type checking and production build pass. GitHub Actions now also exercises local authenticated HTTP flows against D1 and R2.
+- 46 passing unit tests plus a libSQL persistence/atomic-rollback test: buyback accounting, transaction recovery and replay protection, malformed checkpoints, signer restrictions, signer HTTP authentication/body limits, native-free integer codecs, readiness gates and signed-session security.
+- Lint, type checking and the Next.js production build pass. GitHub Actions exercises authenticated HTTP flows on both hosting targets, including Vercel session tampering, identity-header spoofing, durable login limits and artwork round trips.
 - Dependency audit: zero critical, zero high, two moderate findings confined to an unused legacy server dependency. See `SECURITY_REVIEW.md` for scope and evidence.
 - A local fork of current mainnet programs passes every protocol stage below. Actual buy, fee-claim and payout instructions also pass the managed signer's transaction policy.
 - Cloud KMS/Cloud Run provisioning, container configuration, secret exclusions and repeatable verification scripts are included in `infra/`. Cloud provisioning has not been run without an owner-selected project.

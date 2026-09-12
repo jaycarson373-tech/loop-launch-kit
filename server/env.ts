@@ -1,4 +1,4 @@
-import { platformRuntime } from '@/server/platform';
+import { platformRuntime } from './platform';
 import type { Database, ArtworkStore } from './contracts';
 import { executionConfig } from '../lib/runtime-config';
 export type LoopEnv = {

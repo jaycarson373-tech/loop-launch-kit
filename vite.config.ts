@@ -51,7 +51,7 @@ export default defineConfig(async () => {
     resolve: {
       alias: [
         {
-          find: '@/server/platform',
+          find: /^\.\/platform$/,
           replacement: fileURLToPath(
             new URL('./server/platform-sites.ts', import.meta.url),
           ),

@@ -179,11 +179,15 @@ export function LoopProvider({ children }: { children: ReactNode }) {
             <button
               type="button"
               onClick={async () => {
-                const response = await fetch('/api/loop/session', {
-                  method: 'DELETE',
-                });
-                if (response.ok) window.location.assign('/');
-                else setError('Could not sign out. Try again.');
+                try {
+                  const response = await fetch('/api/loop/session', {
+                    method: 'DELETE',
+                  });
+                  if (!response.ok) throw new Error('Sign-out failed.');
+                  window.location.assign('/');
+                } catch {
+                  setError('Could not sign out. Try again.');
+                }
               }}
             >
               Sign out
