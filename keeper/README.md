@@ -14,6 +14,8 @@ Build: `docker build -f keeper/Dockerfile -t loop-signer .`.
 Run signer: `npm run signer`.
 Run poller: `npm run keeper`.
 
+The poller exposes `GET /health` on `PORT` (8080 by default), requires an HTTPS origin and a keeper token of at least 32 characters, rejects redirects, and stops in-flight requests on shutdown. For protected Vercel deployments, set `LOOP_VERCEL_BYPASS` through the secret manager. Use `infra/deploy-keeper.sh` for a continuously running Cloud Run deployment with CPU allocation between requests. This service has not yet been deployed to a live cloud account.
+
 ## Activation and monitoring
 
 `POST /v1/health` requires the signer bearer token and checks key-ring access, reads the managed treasury public key, and reports policy limits. It never signs. This proves read access only; a controlled acceptance run must also exercise KMS signing permissions.

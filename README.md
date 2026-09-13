@@ -2,7 +2,9 @@
 
 **Deploy on Vercel:** import [loop-launch-kit](https://github.com/jaycarson373-tech/loop-launch-kit) as **Next.js**, with the repository root and Node 24. The standard `build`, `start`, and `dev` commands now target Next.js/Vercel. See [VERCEL.md](VERCEL.md) for GitHub access, database and login setup. Sites uses the explicit `*:sites` commands.
 
-Independent Solana launchpad inspired by Revolve's public product. The app includes server-persisted launch plans, artwork storage, Wallet Standard connection, Pump launch preparation and signing, a durable buyback ledger, transaction reconciliation, and managed-signer/keeper services. Vercel uses Turso and an operator login; the existing Sites target uses D1, R2 and its hosted identity.
+Independent Solana launchpad inspired by Revolve's public product. The app includes server-persisted launch plans, artwork storage, Wallet Standard connection, Pump launch preparation and signing, a durable buyback ledger, transaction reconciliation, and managed-signer/keeper services. Vercel uses Turso and separate wallet-authenticated user workspaces, with optional operator access. The existing Sites target uses D1, R2 and its hosted identity.
+
+Wallet sign-in uses a five-minute, single-use message challenge bound to the requesting browser and origin. The server verifies the Ed25519 signature, records a revocable session, and checks ownership on private records and actions. Draft artwork is private; artwork attached to active launches and the public activity views are readable without signing in. The deployed Vercel runtime initializes its database schema automatically after credentials are configured.
 
 **Live activation pending operator setup and funded acceptance.** See [the dated readiness report](LAUNCH_READINESS.md).
 
