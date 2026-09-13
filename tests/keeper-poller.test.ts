@@ -7,7 +7,10 @@ await test('keeper sends both app authentication and configured Vercel access, w
     bypass: 'test-access',
     fetcher: async (url, options) => {
       called = true;
-      assert.equal(String(url), 'https://loop.example/api/loop/keeper');
+      assert.equal(
+        url instanceof URL ? url.href : typeof url === 'string' ? url : url.url,
+        'https://loop.example/api/loop/keeper',
+      );
       const headers = new Headers(options?.headers);
       assert.equal(headers.get('Authorization'), `Bearer ${'t'.repeat(48)}`);
       assert.equal(headers.get('x-vercel-protection-bypass'), 'test-access');

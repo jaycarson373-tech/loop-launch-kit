@@ -140,6 +140,7 @@ export function LoopProvider({
   showAccountNotice?: boolean;
 }) {
   const [config, setConfig] = useState<LiveConfig | null>(null);
+  const [error, setError] = useState('');
   const [opened, setOpened] = useState(false),
     [refresh, setRefresh] = useState(0);
   useEffect(() => {
@@ -157,7 +158,6 @@ export function LoopProvider({
     wallets = useWallets(client),
     connect = useConnect(client),
     disconnect = useDisconnect(client);
-  const [error, setError] = useState('');
   useEffect(() => {
     if (
       config?.signInUrl !== '/signin' ||

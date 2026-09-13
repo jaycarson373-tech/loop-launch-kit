@@ -13,15 +13,19 @@ const api = async (
   method = body === undefined ? 'GET' : 'POST',
   from = origin,
 ) => {
-  const response = await fetch(`${origin}/api/loop/${path}`, {
+  const options: RequestInit = {
     method,
     headers: {
       Cookie: cookie,
       Origin: from,
       'Content-Type': 'application/json',
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  };
+  if (body !== undefined) {
+    assert.notEqual(method, 'GET');
+    options.body = JSON.stringify(body);
+  }
+  const response = await fetch(`${origin}/api/loop/${path}`, options);
   return response;
 };
 async function wallet() {
@@ -105,7 +109,7 @@ try {
     api('auth/verify', signed, c.cookie),
   ]);
   assert.deepEqual(
-    attempts.map((r) => r.status).sort(),
+    attempts.map((r) => r.status).sort((a, b) => a - b),
     [200, 401],
     'A concurrent replay must not issue a second session.',
   );

@@ -26,10 +26,10 @@ function WalletSignIn() {
         plans. Signing in costs nothing and does not authorize a payment.
       </p>
       {config && !config.workspaceConfigured && (
-        <p role="status">
+        <output>
           Wallet sign-in is unavailable while the operator finishes setting up
           the workspace.
-        </p>
+        </output>
       )}
       <Button
         disabled={busy || !config?.workspaceConfigured}
