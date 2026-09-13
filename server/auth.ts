@@ -1,6 +1,7 @@
 import { assert, json, readJson, sameOrigin } from './http';
 import { runtime } from './env';
-import { issueSession, passwordMatches, sessionCookie } from '../lib/session';
+import { passwordMatches, sessionCookie } from '../lib/session';
+import { createSession, currentSession } from './sessions';
 
 export function authStatus() {
   const env = runtime();
@@ -14,10 +15,11 @@ export function authStatus() {
       !!(
         env.TURSO_DATABASE_URL &&
         (env.TURSO_DATABASE_URL.startsWith('file:') || env.TURSO_AUTH_TOKEN) &&
-        (env.LOOP_ADMIN_PASSWORD?.length ?? 0) >= 32 &&
         (env.LOOP_SESSION_SECRET?.length ?? 0) >= 32 &&
-        env.LOOP_ADMIN_PASSWORD !== env.LOOP_SESSION_SECRET
+        (!env.LOOP_ADMIN_PASSWORD ||
+          env.LOOP_ADMIN_PASSWORD !== env.LOOP_SESSION_SECRET)
       ),
+    operatorLoginEnabled: (env.LOOP_ADMIN_PASSWORD?.length ?? 0) >= 32,
   };
 }
 export async function sessionRoute(request: Request) {
@@ -26,11 +28,21 @@ export async function sessionRoute(request: Request) {
   sameOrigin(request);
   const secure = new URL(request.url).protocol === 'https:';
   if (request.method === 'DELETE') {
+    const session = await currentSession(request);
+    if (session)
+      await env.DB.prepare('DELETE FROM auth_sessions WHERE id=?')
+        .bind(session.id)
+        .run();
     const response = json({ ok: true });
     response.headers.set('Set-Cookie', sessionCookie('', secure, 0));
     return response;
   }
   assert(request.method === 'POST', 405, 'Method not allowed.');
+  assert(
+    (env.LOOP_ADMIN_PASSWORD?.length ?? 0) >= 32,
+    404,
+    'Operator login is not enabled. Sign in with your wallet.',
+  );
   assert(
     authStatus().workspaceConfigured,
     503,
@@ -62,10 +74,7 @@ export async function sessionRoute(request: Request) {
   const response = json({ ok: true });
   response.headers.set(
     'Set-Cookie',
-    sessionCookie(
-      await issueSession(env.LOOP_SESSION_SECRET!, new URL(request.url).origin),
-      secure,
-    ),
+    await createSession(request, 'loop-operator'),
   );
   return response;
 }

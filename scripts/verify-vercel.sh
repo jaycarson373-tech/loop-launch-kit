@@ -31,3 +31,4 @@ curl --fail --silent "$LOOP_TEST_ORIGIN/" > /dev/null
 curl --fail --silent "$LOOP_TEST_ORIGIN/signin" > /dev/null
 node --experimental-strip-types scripts/check-api.ts || { cat "$test_dir/server.log"; exit 1; }
 node --experimental-strip-types scripts/check-vercel-auth.ts || { cat "$test_dir/server.log"; exit 1; }
+node --experimental-strip-types scripts/check-wallet-auth.ts || { cat "$test_dir/server.log"; exit 1; }

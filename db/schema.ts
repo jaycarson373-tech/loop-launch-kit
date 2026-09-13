@@ -65,6 +65,33 @@ export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
 });
+export const authSessions = sqliteTable(
+  'auth_sessions',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [index('idx_auth_sessions_expires').on(t.expiresAt)],
+);
+export const authChallenges = sqliteTable(
+  'auth_challenges',
+  {
+    id: text('id').primaryKey(),
+    wallet: text('wallet').notNull(),
+    origin: text('origin').notNull(),
+    message: text('message').notNull(),
+    browserHash: text('browser_hash').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    createdAt: integer('created_at').notNull(),
+    used: integer('used').notNull().default(0),
+  },
+  (t) => [
+    index('idx_auth_challenges_wallet_created').on(t.wallet, t.createdAt),
+    index('idx_auth_challenges_created').on(t.createdAt),
+    index('idx_auth_challenges_expires').on(t.expiresAt),
+  ],
+);
 export const treasuryRevenue = sqliteTable(
   'treasury_revenue',
   {

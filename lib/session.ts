@@ -36,8 +36,11 @@ export async function issueSession(
   secret: string,
   origin: string,
   now = Date.now(),
+  subject = 'loop-operator',
 ) {
-  const payload = `${Math.floor(now / 1000) + SESSION_SECONDS}.${crypto.randomUUID()}`;
+  if (!/^(loop-operator|wallet:[1-9A-HJ-NP-Za-km-z]{32,44})$/.test(subject))
+    throw new Error('Invalid session subject.');
+  const payload = `v2.${Math.floor(now / 1000) + SESSION_SECONDS}.${crypto.randomUUID()}.${subject}`;
   return `${payload}.${hex(await crypto.subtle.sign('HMAC', await key(secret), encoder.encode(`${origin}|${payload}`)))}`;
 }
 export async function verifySession(
@@ -46,23 +49,34 @@ export async function verifySession(
   origin: string,
   now = Date.now(),
 ) {
+  return !!(await readSession(value, secret, origin, now));
+}
+export async function readSession(
+  value: string,
+  secret: string,
+  origin: string,
+  now = Date.now(),
+) {
   if (
-    !/^\d{10}\.[0-9a-f-]{36}\.[0-9a-f]{64}$/.test(value) ||
+    !/^v2\.\d{10}\.[0-9a-f-]{36}\.(loop-operator|wallet:[1-9A-HJ-NP-Za-km-z]{32,44})\.[0-9a-f]{64}$/.test(
+      value,
+    ) ||
     secret.length < 32
   )
-    return false;
-  const [expires, nonce, signature] = value.split('.');
+    return null;
+  const [, expires, nonce, subject, signature] = value.split('.');
   const remaining = Number(expires) - Math.floor(now / 1000);
-  if (remaining <= 0 || remaining > SESSION_SECONDS) return false;
+  if (remaining <= 0 || remaining > SESSION_SECONDS) return null;
   const bytes = Uint8Array.from(signature.match(/../g)!, (v) =>
     parseInt(v, 16),
   );
-  return crypto.subtle.verify(
+  const valid = await crypto.subtle.verify(
     'HMAC',
     await key(secret),
     bytes,
-    encoder.encode(`${origin}|${expires}.${nonce}`),
+    encoder.encode(`${origin}|v2.${expires}.${nonce}.${subject}`),
   );
+  return valid ? { id: nonce, subject, expires: Number(expires) * 1000 } : null;
 }
 export function sessionCookie(
   value: string,

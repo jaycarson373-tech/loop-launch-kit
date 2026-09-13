@@ -42,6 +42,8 @@ import {
 } from 'lucide-react';
 export type LiveConfig = {
   signedIn: boolean;
+  account: string | null;
+  operatorLoginEnabled: boolean;
   signInUrl: string;
   workspaceConfigured: boolean;
   cluster: 'devnet' | 'mainnet-beta';
@@ -130,14 +132,22 @@ export const useLoop = () => {
   if (!c) throw new Error('Loop wallet provider missing');
   return c;
 };
-export function LoopProvider({ children }: { children: ReactNode }) {
+export function LoopProvider({
+  children,
+  showAccountNotice = true,
+}: {
+  children: ReactNode;
+  showAccountNotice?: boolean;
+}) {
   const [config, setConfig] = useState<LiveConfig | null>(null);
   const [opened, setOpened] = useState(false),
     [refresh, setRefresh] = useState(0);
   useEffect(() => {
     requestApi<LiveConfig>('config')
       .then(setConfig)
-      .catch(() => setConfig(null));
+      .catch(() =>
+        setError('Could not load Loop. Check your connection and reload.'),
+      );
   }, []);
   const client = useMemo(
     () => makeClient(config?.chain || 'solana:devnet'),
@@ -148,6 +158,37 @@ export function LoopProvider({ children }: { children: ReactNode }) {
     connect = useConnect(client),
     disconnect = useDisconnect(client);
   const [error, setError] = useState('');
+  useEffect(() => {
+    if (
+      config?.signInUrl !== '/signin' ||
+      !config.signedIn ||
+      !config.account ||
+      config.account === 'loop-operator' ||
+      !connected?.account.address ||
+      connected.account.address === config.account
+    )
+      return;
+    let cancelled = false;
+    void fetch('/api/loop/session', { method: 'DELETE' })
+      .then((response) => {
+        if (!response.ok) throw new Error('Sign-out failed.');
+        if (!cancelled) window.location.assign('/signin');
+      })
+      .catch(() => {
+        if (!cancelled)
+          setError(
+            'Wallet changed. Sign out and sign in again before continuing.',
+          );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    connected?.account.address,
+    config?.account,
+    config?.signInUrl,
+    config?.signedIn,
+  ]);
   return (
     <ClientProvider client={client}>
       <Context.Provider
@@ -160,7 +201,7 @@ export function LoopProvider({ children }: { children: ReactNode }) {
           changed: () => setRefresh((v) => v + 1),
         }}
       >
-        {config && !config.signedIn && (
+        {showAccountNotice && config && !config.signedIn && (
           <div className="inline-note">
             <Info />
             <p>
@@ -173,27 +214,38 @@ export function LoopProvider({ children }: { children: ReactNode }) {
             </p>
           </div>
         )}
-        {config?.signedIn && config.signInUrl === '/signin' && (
-          <div className="inline-note">
-            <p>Operator workspace</p>
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  const response = await fetch('/api/loop/session', {
-                    method: 'DELETE',
-                  });
-                  if (!response.ok) throw new Error('Sign-out failed.');
-                  window.location.assign('/');
-                } catch {
-                  setError('Could not sign out. Try again.');
-                }
-              }}
-            >
-              Sign out
-            </button>
-            {error && <p role="alert">{error}</p>}
-          </div>
+        {showAccountNotice &&
+          config?.signedIn &&
+          config.signInUrl === '/signin' && (
+            <div className="inline-note">
+              <p>
+                {config.account === 'loop-operator'
+                  ? 'Operator workspace'
+                  : `Signed in: ${config.account?.slice(0, 6)}…${config.account?.slice(-4)}`}
+              </p>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const response = await fetch('/api/loop/session', {
+                      method: 'DELETE',
+                    });
+                    if (!response.ok) throw new Error('Sign-out failed.');
+                    window.location.assign('/');
+                  } catch {
+                    setError('Could not sign out. Try again.');
+                  }
+                }}
+              >
+                Sign out
+              </button>
+              {error && <p role="alert">{error}</p>}
+            </div>
+          )}
+        {!config && error && (
+          <p role="alert" className="inline-note">
+            {error}
+          </p>
         )}
         {children}
         <Dialog open={opened} onOpenChange={setOpened}>

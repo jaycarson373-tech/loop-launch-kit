@@ -64,6 +64,8 @@ function HomeContent() {
   const [currentId, setCurrentId] = useState('');
   const upload = useRef<HTMLInputElement>(null);
   useEffect(() => {
+    // Legacy browser drafts belong to the original operator workspace.
+    if (config?.account !== 'loop-operator') return;
     const timer = setTimeout(() => {
       try {
         const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
@@ -90,7 +92,7 @@ function HomeContent() {
       }
     }, 0);
     return () => clearTimeout(timer);
-  }, []);
+  }, [config?.account]);
   useEffect(() => {
     const change = () => {
       const target = location.hash.replace('#', '');
@@ -138,6 +140,12 @@ function HomeContent() {
     }
   }
   async function save() {
+    if (!config?.signedIn) {
+      setError(
+        'Sign in to your workspace before saving. You can export this plan first to keep a copy.',
+      );
+      return;
+    }
     if (!address) {
       openWallet();
       return;
@@ -721,9 +729,11 @@ function HomeContent() {
           >
             {saving
               ? 'Saving…'
-              : address
-                ? 'Save launch plan'
-                : 'Connect wallet to save'}
+              : !config?.signedIn
+                ? 'Sign in before saving'
+                : address
+                  ? 'Save launch plan'
+                  : 'Connect wallet to save'}
             <Check />
           </button>
           <button

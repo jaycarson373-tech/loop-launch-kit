@@ -9,6 +9,7 @@ import {
   sameOrigin,
 } from './http';
 import { authStatus, sessionRoute } from './auth';
+import { walletAuth } from './wallet-auth';
 import { runtime, config } from './env';
 import { serviceReadiness } from './readiness';
 import {
@@ -74,14 +75,19 @@ export async function handle(request: Request) {
         .split('/')
         .filter(Boolean),
       method = request.method;
-    if (method === 'GET' && parts[0] === 'config')
+    if (method === 'GET' && parts[0] === 'config') {
+      const account = await signedInIdentity(request);
       return json({
         ...config(),
-        signedIn: !!(await signedInIdentity(request)),
+        signedIn: !!account,
+        account: account?.replace(/^wallet:/, '') ?? null,
         ...authStatus(),
       });
+    }
     if (parts[0] === 'session' && parts.length === 1)
       return sessionRoute(request);
+    if (parts[0] === 'auth' && parts.length === 2)
+      return walletAuth(request, parts[1]);
     if (method === 'POST' && parts[0] === 'keeper') {
       const expected = runtime().LOOP_KEEPER_TOKEN;
       assert(
@@ -117,6 +123,86 @@ export async function handle(request: Request) {
         }
       }
       return json({ results });
+    }
+    if (method === 'GET' && parts[0] === 'explore') {
+      const rows = (
+        await db()
+          .prepare(
+            "SELECT * FROM launches WHERE status='active' ORDER BY created_at DESC LIMIT 100",
+          )
+          .all<LaunchRow>()
+      ).results;
+      return json({ launches: rows.map(publicLaunch) });
+    }
+    if (method === 'GET' && parts[0] === 'treasury') {
+      const c = config();
+      const row = c.mainMint
+        ? await db()
+            .prepare('SELECT * FROM launches WHERE mint=?')
+            .bind(c.mainMint)
+            .first<LaunchRow>()
+        : null;
+      return json({
+        treasury: c.treasury,
+        mint: c.mainMint,
+        automationEnabled: c.automationEnabled,
+        balances: row ? publicLaunch(row).balances : null,
+      });
+    }
+    if (method === 'GET' && parts[0] === 'history') {
+      const rows = (
+        await db()
+          .prepare(
+            "SELECT t.id,t.kind,t.status,t.signature,t.details,t.created_at,l.plan,l.mint FROM transactions t JOIN launches l ON l.id=t.launch_id WHERE t.status IN ('confirmed','failed','uncertain','submitted') AND t.kind='buyback' AND l.status='active' ORDER BY t.created_at DESC LIMIT 100",
+          )
+          .all<{
+            id: string;
+            kind: string;
+            status: string;
+            signature: string | null;
+            details: string;
+            created_at: number;
+            plan: string;
+            mint: string | null;
+          }>()
+      ).results;
+      return json({
+        transactions: rows.map((r) => ({
+          ...r,
+          details: JSON.parse(r.details),
+          name: JSON.parse(r.plan).name,
+          plan: undefined,
+        })),
+      });
+    }
+    if (method === 'GET' && parts[0] === 'assets' && parts[1]) {
+      const row = await db()
+        .prepare('SELECT id,owner,mime FROM assets WHERE id=?')
+        .bind(parts[1])
+        .first<{ id: string; owner: string; mime: string }>();
+      const viewer = await signedInIdentity(request);
+      const published =
+        row &&
+        (await db()
+          .prepare(
+            "SELECT id FROM launches WHERE status='active' AND json_extract(plan,'$.image')=? LIMIT 1",
+          )
+          .bind(`/api/loop/assets/${row.id}`)
+          .first());
+      assert(
+        row && (row.owner === viewer || published),
+        404,
+        'Artwork not found.',
+      );
+      const asset = await runtime().ASSETS.get(row.id);
+      assert(asset, 404, 'Artwork not found.');
+      return new Response(asset.body, {
+        headers: {
+          'Content-Type': row.mime,
+          'Cache-Control': 'private,no-store',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      });
     }
     const owner = await identity(request);
     if (method === 'GET' && parts[0] === 'readiness')
@@ -158,74 +244,7 @@ export async function handle(request: Request) {
         })),
       });
     }
-    if (method === 'GET' && parts[0] === 'explore') {
-      const rows = (
-        await db()
-          .prepare(
-            "SELECT * FROM launches WHERE status='active' ORDER BY created_at DESC LIMIT 100",
-          )
-          .all<LaunchRow>()
-      ).results;
-      return json({ launches: rows.map(publicLaunch) });
-    }
-    if (method === 'GET' && parts[0] === 'treasury') {
-      const c = config();
-      const row = c.mainMint
-        ? await db()
-            .prepare('SELECT * FROM launches WHERE mint=?')
-            .bind(c.mainMint)
-            .first<LaunchRow>()
-        : null;
-      return json({
-        treasury: c.treasury,
-        mint: c.mainMint,
-        automationEnabled: c.automationEnabled,
-        balances: row ? publicLaunch(row).balances : null,
-      });
-    }
-    if (method === 'GET' && parts[0] === 'history') {
-      const rows = (
-        await db()
-          .prepare(
-            "SELECT t.id,t.kind,t.status,t.signature,t.details,t.created_at,l.plan,l.mint FROM transactions t JOIN launches l ON l.id=t.launch_id WHERE t.status IN ('confirmed','failed','uncertain','submitted') AND t.kind='buyback' ORDER BY t.created_at DESC LIMIT 100",
-          )
-          .all<{
-            id: string;
-            kind: string;
-            status: string;
-            signature: string | null;
-            details: string;
-            created_at: number;
-            plan: string;
-            mint: string | null;
-          }>()
-      ).results;
-      return json({
-        transactions: rows.map((r) => ({
-          ...r,
-          details: JSON.parse(r.details),
-          name: JSON.parse(r.plan).name,
-          plan: undefined,
-        })),
-      });
-    }
     if (parts[0] === 'assets') {
-      if (method === 'GET' && parts[1]) {
-        const row = await db()
-          .prepare('SELECT * FROM assets WHERE id=?')
-          .bind(parts[1])
-          .first<{ id: string; owner: string; mime: string }>();
-        assert(row, 404, 'Artwork not found.');
-        const asset = await runtime().ASSETS.get(row.id);
-        assert(asset, 404, 'Artwork not found.');
-        return new Response(asset.body, {
-          headers: {
-            'Content-Type': row.mime,
-            'Cache-Control': 'private,max-age=3600',
-            'X-Content-Type-Options': 'nosniff',
-          },
-        });
-      }
       if (method === 'POST') {
         const size = Number(request.headers.get('content-length'));
         assert(
@@ -270,6 +289,11 @@ export async function handle(request: Request) {
         validAddress(input.wallet),
         422,
         'Connect a Solana wallet before saving to the server.',
+      );
+      assert(
+        !owner.startsWith('wallet:') || input.wallet === owner.slice(7),
+        403,
+        'Sign in with the connected wallet before saving.',
       );
       if (plan.image) {
         const image = await db()
