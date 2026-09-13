@@ -15,9 +15,7 @@ export LOOP_ADMIN_PASSWORD='local-integration-password-000000000000000000000000'
 export LOOP_SESSION_SECRET='local-integration-session-key-111111111111111111111'
 export LOOP_TEST_PASSWORD="$LOOP_ADMIN_PASSWORD"
 export LOOP_TEST_ORIGIN='http://localhost:4174'
-npm run db:migrate
-# Applying migrations again must preserve the schema and existing migration ledger.
-npm run db:migrate
+# The first authenticated request initializes an empty database automatically.
 node node_modules/next/dist/bin/next start --port 4174 > "$test_dir/server.log" 2>&1 &
 server_pid=$!
 ready=false
@@ -32,3 +30,7 @@ curl --fail --silent "$LOOP_TEST_ORIGIN/signin" > /dev/null
 node --experimental-strip-types scripts/check-api.ts || { cat "$test_dir/server.log"; exit 1; }
 node --experimental-strip-types scripts/check-vercel-auth.ts || { cat "$test_dir/server.log"; exit 1; }
 node --experimental-strip-types scripts/check-wallet-auth.ts || { cat "$test_dir/server.log"; exit 1; }
+
+# Explicit repeat migrations must preserve all persisted state.
+npm run db:migrate
+npm run db:migrate

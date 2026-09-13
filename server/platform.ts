@@ -1,6 +1,7 @@
 import { createClient } from '@libsql/client';
 import type { LoopEnv } from './env';
 import { SqlDatabase, SqlArtworkStore } from './sql-storage';
+import { migrateDatabase } from './migrate-database';
 
 let database: SqlDatabase | undefined;
 function db() {
@@ -12,9 +13,8 @@ function db() {
     throw new Error(
       'Vercel requires a remote database; local files are not persistent.',
     );
-  database = new SqlDatabase(
-    createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN }),
-  );
+  const client = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
+  database = new SqlDatabase(client, () => migrateDatabase(client));
   return database;
 }
 

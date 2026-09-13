@@ -26,9 +26,11 @@ class SqlStatement implements Statement {
     return new SqlStatement(this.database, this.query.sql, values);
   }
   async run() {
+    await this.database.ensureReady();
     return result(await this.database.client.execute(this.query));
   }
   async all<T = Record<string, unknown>>() {
+    await this.database.ensureReady();
     return result<T>(await this.database.client.execute(this.query));
   }
   async first<T = Record<string, unknown>>() {
@@ -37,13 +39,24 @@ class SqlStatement implements Statement {
 }
 export class SqlDatabase implements Database {
   readonly client: Client;
-  constructor(client: Client) {
+  private readonly initialize?: () => Promise<void>;
+  private ready?: Promise<void>;
+  constructor(client: Client, initialize?: () => Promise<void>) {
     this.client = client;
+    this.initialize = initialize;
+  }
+  async ensureReady() {
+    this.ready ??= (this.initialize?.() ?? Promise.resolve()).catch((error) => {
+      this.ready = undefined;
+      throw error;
+    });
+    await this.ready;
   }
   prepare(sql: string) {
     return new SqlStatement(this, sql);
   }
   async batch(statements: Statement[]) {
+    await this.ensureReady();
     const queries = statements.map((statement) => {
       if (!(statement instanceof SqlStatement) || statement.database !== this)
         throw new Error('Batch statements must belong to this database.');

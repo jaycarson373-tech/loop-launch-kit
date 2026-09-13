@@ -2,7 +2,7 @@
 
 Import **https://github.com/jaycarson373-tech/loop-launch-kit** and select branch `main`.
 
-The repository is private. Sign in to Vercel with the GitHub account that can access it. If it is missing from the import list, use **Adjust GitHub App Permissions** and grant Vercel access to `loop-launch-kit`. A repository URL alone does not grant access.
+The repository is public. Import its URL directly into Vercel. If it is missing from your connected repository list, use **Adjust GitHub App Permissions** and grant Vercel access to `loop-launch-kit`.
 
 Use these settings (also checked into `vercel.json`):
 
@@ -19,24 +19,24 @@ Do not select `vendor/bigint-buffer` as the project root. It is a dependency wor
 
 ## Persistent workspace
 
-The site builds and displays without secrets. Saving launch plans and artwork requires a database and an operator login. Missing settings produce a setup message rather than pretending data was saved.
+The site builds and displays without secrets. Saving launch plans and artwork requires a database and wallet sign-in. Each wallet has its own private workspace. Missing settings produce a setup message rather than pretending data was saved.
 
 1. Create a Turso libSQL database. Add `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` to the Vercel project's environment variables. Do not use a `file:` URL on Vercel: its filesystem is temporary.
-2. Generate **two different** secret values with `openssl rand -hex 32`. Set one as `LOOP_ADMIN_PASSWORD` and the other as `LOOP_SESSION_SECRET`. Keep them in a password manager. The login is for the private operator workspace, not public user registration.
-3. In a trusted local checkout, set the database URL/token in your shell and run `npm ci` then `npm run db:migrate`. This applies the existing launch/ledger schema and artwork table transactionally; running it again preserves data. Never put secrets in Git or a command you plan to share.
-4. Redeploy in Vercel after setting the environment variables. Open `/signin` and enter `LOOP_ADMIN_PASSWORD`. Connect a Solana wallet to create a draft, upload artwork, save it, and reload to confirm persistence.
+2. Generate `LOOP_SESSION_SECRET` with `openssl rand -hex 32`. Keep it in the Vercel environment settings and your password manager. Optionally set a **different** generated `LOOP_ADMIN_PASSWORD` to retain access to the original operator workspace; public users never need that password.
+3. Redeploy in Vercel after setting the variables. The first database operation applies the checked-in schema migrations transactionally. No separate migration command is required. Existing records are preserved. An explicit `npm run db:migrate` remains available for controlled rollouts.
+4. Open `/signin`, connect a compatible Solana wallet and approve the sign-in message. This signs a message only, with no network transaction or fee. Create a draft, upload artwork, save it, and reload to confirm persistence. A second wallet must have a separate workspace.
 
-Use a separate database and credentials for Vercel Preview deployments. The build intentionally does **not** migrate or modify production data. Existing Sites D1/R2 records remain on Sites; this configuration starts a separate workspace and does not transfer existing records.
+Use a separate database and credentials for Vercel Preview deployments. The build does not access production data; schema updates run on first database access in the deployed runtime. Back up the database before deploying schema changes. Existing Sites D1/R2 records remain on Sites and are not transferred automatically.
 
-Database records and uploaded artwork are both stored in Turso. There is no Cloudflare binding, browser-only persistence fallback, or dependency on the Sites authentication gateway in the Vercel runtime. Transactions remain atomic through libSQL write batches. Session cookies are signed, expire after eight hours, and are HttpOnly, SameSite=Strict and Secure on HTTPS. Login attempts are limited in persistent storage. Rotating the session secret invalidates all sessions. Vercel ignores all `oai-authenticated-user-id` headers from clients.
+Database records and uploaded artwork are both stored in Turso. Transactions remain atomic through libSQL write batches. Wallet challenges expire after five minutes, bind the browser and origin, and can be used only once. Ed25519 verification proves ownership of the exact wallet address. Session cookies are signed, expire after eight hours, and are HttpOnly, SameSite=Strict and Secure on HTTPS. Sessions are recorded server-side and revoked on logout. Rotating the session secret invalidates all sessions. Vercel ignores all `oai-authenticated-user-id` headers from clients.
 
-The public dashboard can be viewed without login; records, artwork and operational endpoints require authentication. Keep Vercel Deployment Protection enabled if you want the entire website private. A private GitHub repository does not make its deployed website private.
+Explore, treasury, buyback history and artwork attached to active launches are public. Drafts, unpublished artwork, transaction actions and readiness checks require authentication. One wallet cannot read or modify another wallet's drafts or unpublished artwork. Keep Vercel Deployment Protection enabled if you want the entire website private. Repository visibility does not control website access.
 
 ## Financial execution
 
 Importing and deploying does not activate token launches or spend funds. Keep `LOOP_EXECUTION_ENABLED=false` until the managed signer, RPC, treasury, keeper and funded acceptance are complete. See `config/site.env.example`, `infra/README.md`, and `LAUNCH_READINESS.md`.
 
-The keeper must run as the existing continuously running service, pointed at the Vercel URL. Vercel cron is not a replacement for the engine's seconds-level polling. If Deployment Protection is enabled, the keeper also needs an approved protection bypass in addition to its application bearer token. The API declares a 300-second maximum duration; confirm the Vercel plan supports that duration before enabling execution.
+Use `bash infra/deploy-keeper.sh PROJECT REGION HTTPS_ORIGIN` after deploying the signer and configuring the application keeper token. It deploys a continuous Cloud Run worker with a health endpoint and CPU allocation between requests. It has no KMS access. If Vercel Deployment Protection is enabled, provide its automation bypass through Secret Manager as documented in `infra/README.md`. The API declares a 300-second maximum duration; confirm the Vercel plan supports that duration before enabling execution.
 
 ## Local verification
 
